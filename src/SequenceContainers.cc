@@ -61,4 +61,24 @@ std::vector<std::vector<std::shared_ptr<CiphertextImpl>>>&
     return m_ciphertexts;
 }
 
+std::unique_ptr<VectorOfCiphertexts> vector_of_ciphertexts_single(const std::shared_ptr<CiphertextImpl>& ct)
+{
+    std::vector<std::shared_ptr<CiphertextImpl>> single_vector;
+    single_vector.push_back(ct);
+    return std::make_unique<VectorOfCiphertexts>(std::move(single_vector));
+}
+
+std::unique_ptr<VectorOfCiphertexts> vector_of_ciphertexts_empty()
+{
+    std::vector<std::shared_ptr<CiphertextImpl>> empty_vector;
+    return std::make_unique<VectorOfCiphertexts>(std::move(empty_vector));
+}
+
+
+void vector_of_ciphertexts_extend(VectorOfCiphertexts& dest, const VectorOfCiphertexts& src)
+{
+    dest.GetRef().insert(dest.GetRef().end(), src.GetRef().begin(), src.GetRef().end());
+}
+
+
 } // openfhe

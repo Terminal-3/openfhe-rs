@@ -5,6 +5,7 @@
 #include "openfhe/pke/ciphertext-fwd.h"
 #include "openfhe/pke/key/evalkey-fwd.h"
 #include "openfhe/pke/key/privatekey-fwd.h"
+#include "CryptoContext.h"
 
 // cxx currently does not support std::vector of opaque type
 
@@ -76,4 +77,16 @@ public:
     [[nodiscard]] std::vector<std::vector<std::shared_ptr<CiphertextImpl>>>& GetRef() noexcept;
 };
 
-} // openfhe
+
+// Factory function to create an empty VectorOfCiphertexts
+std::unique_ptr<VectorOfCiphertexts> vector_of_ciphertexts_single(const std::shared_ptr<CiphertextImpl>& ct);
+
+
+/// empty vector of ciphertexts
+std::unique_ptr<VectorOfCiphertexts> vector_of_ciphertexts_empty();
+
+
+/// extend a vector of ciphertexts with another vector of ciphertexts
+void vector_of_ciphertexts_extend(VectorOfCiphertexts& dest, const VectorOfCiphertexts& src);
+}
+
