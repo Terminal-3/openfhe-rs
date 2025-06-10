@@ -97,4 +97,7 @@ fn main() {
     out.SetLength(data.len());
     println!("Decrypted len → {:?}", out.GetLength());
     println!("Decrypted → {}", out.GetString());
+
+    // assert that the decrypted data is equal to the original data
+    assert_eq!(data, out.GetPackedValue().as_slice());
 }
