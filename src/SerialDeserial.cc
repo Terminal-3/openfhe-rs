@@ -101,11 +101,8 @@ bool DCRTPolySerializeCiphertextToBytes(const CiphertextDCRTPoly& ciphertext,
 
 }
 
-bool AreCiphertextsEqual(const CiphertextDCRTPoly& a, const CiphertextDCRTPoly& b)
-{
-    /// instead of shallow comparison, let's subtract the ciphertexts and check if the result is zero
-    return a.GetRef() == b.GetRef();
-}
+
+
 
 // Ciphertext
 bool DCRTPolyDeserializeCiphertextFromFile(const std::string& ciphertextLocation,
@@ -287,6 +284,35 @@ bool DCRTPolySerializePublicKeyToFile(const std::string& publicKeyLocation,
     return Serial(publicKeyLocation, publicKey, serialMode);
 }
 
+bool DCRTPolyDeserializePublicKeyFromBytes(const std::vector<uint8_t>& bytes,
+    PublicKeyDCRTPoly& publicKey)
+{
+    try {
+        std::string byte_string(bytes.begin(), bytes.end());
+        std::stringstream stream(byte_string);
+        lbcrypto::Serial::Deserialize(publicKey.GetRef(), stream, lbcrypto::SerType::SERBINARY());
+        return true; // Success
+    } catch (const std::exception& e) {
+        return false; // Failure
+    }
+}
+
+bool DCRTPolySerializePublicKeyToBytes(const PublicKeyDCRTPoly& publicKey,
+    std::vector<uint8_t>& out_bytes)
+{
+    std::ostringstream stream;
+
+    try {
+
+        lbcrypto::Serial::Serialize(publicKey.GetRef(), stream, lbcrypto::SerType::SERBINARY());
+        std::string str = stream.str();
+        out_bytes.assign(str.begin(), str.end());
+        return true;
+    } catch (const std::exception& e) {
+        return false; // Failure
+    }
+}
+
 bool DCRTPolyDeserializePrivateKeyFromFile(const std::string& privateKeyLocation,
     PrivateKeyDCRTPoly& privateKey, const SerialMode serialMode)
 {
@@ -299,4 +325,32 @@ bool DCRTPolySerializePrivateKeyToFile(const std::string& privateKeyLocation,
     return Serial(privateKeyLocation, privateKey, serialMode);
 }
 
+bool DCRTPolyDeserializePrivateKeyFromBytes(const std::vector<uint8_t>& bytes,
+    PrivateKeyDCRTPoly& privateKey)
+{
+    try {
+        std::string byte_string(bytes.begin(), bytes.end());
+        std::stringstream stream(byte_string);
+        lbcrypto::Serial::Deserialize(privateKey.GetRef(), stream, lbcrypto::SerType::SERBINARY());
+        return true; // Success
+    } catch (const std::exception& e) {
+        return false; // Failure
+    }
+}
+
+bool DCRTPolySerializePrivateKeyToBytes(const PrivateKeyDCRTPoly& privateKey,
+    std::vector<uint8_t>& out_bytes)
+{
+    std::ostringstream stream;
+
+    try {
+
+        lbcrypto::Serial::Serialize(privateKey.GetRef(), stream, lbcrypto::SerType::SERBINARY());
+        std::string str = stream.str();
+        out_bytes.assign(str.begin(), str.end());
+        return true;
+    } catch (const std::exception& e) {
+        return false; // Failure
+    }
+}
 } // openfhe

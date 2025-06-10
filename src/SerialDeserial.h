@@ -28,14 +28,14 @@ class PublicKeyDCRTPoly;
     const CiphertextDCRTPoly& ciphertext,
     std::vector<uint8_t>& out_bytes);
 
-[[nodiscard]] bool AreCiphertextsEqual(const CiphertextDCRTPoly& a,
-    const CiphertextDCRTPoly& b);
+
 
 // CryptoContext
 [[nodiscard]] bool DCRTPolyDeserializeCryptoContextFromFile(const std::string& ccLocation,
     CryptoContextDCRTPoly& cryptoContext, const SerialMode serialMode);
 [[nodiscard]] bool DCRTPolySerializeCryptoContextToFile(const std::string& ccLocation,
     const CryptoContextDCRTPoly& cryptoContext, const SerialMode serialMode);
+
 
 // EvalAutomorphismKey
 [[nodiscard]] bool DCRTPolyDeserializeEvalMultKeyFromFile(const std::string& multKeyLocation,
@@ -68,10 +68,18 @@ class PublicKeyDCRTPoly;
     PublicKeyDCRTPoly& publicKey, const SerialMode serialMode);
 [[nodiscard]] bool DCRTPolySerializePublicKeyToFile(const std::string& publicKeyLocation,
     const PublicKeyDCRTPoly& publicKey, const SerialMode serialMode);
+[[nodiscard]] bool DCRTPolyDeserializePublicKeyFromBytes(const std::vector<uint8_t>& bytes,
+    PublicKeyDCRTPoly& publicKey);
+[[nodiscard]] bool DCRTPolySerializePublicKeyToBytes(const PublicKeyDCRTPoly& publicKey,
+    std::vector<uint8_t>& out_bytes);
 
 [[nodiscard]] bool DCRTPolyDeserializePrivateKeyFromFile(const std::string& privateKeyLocation,
     PrivateKeyDCRTPoly& privateKey, const SerialMode serialMode);
 [[nodiscard]] bool DCRTPolySerializePrivateKeyToFile(const std::string& privateKeyLocation,
     const PrivateKeyDCRTPoly& cryptoContext, const SerialMode serialMode);
+[[nodiscard]] bool DCRTPolyDeserializePrivateKeyFromBytes(const std::vector<uint8_t>& bytes,
+    PrivateKeyDCRTPoly& privateKey);
+[[nodiscard]] bool DCRTPolySerializePrivateKeyToBytes(const PrivateKeyDCRTPoly& privateKey,
+    std::vector<uint8_t>& out_bytes);
 
 } // openfhe

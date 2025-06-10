@@ -26,4 +26,12 @@ public:
 // Generator functions
 [[nodiscard]] std::unique_ptr<PublicKeyDCRTPoly> DCRTPolyGenNullPublicKey();
 
+// Clone function
+[[nodiscard]] std::unique_ptr<PublicKeyDCRTPoly> DCRTPolyClonePublicKey(
+    const PublicKeyDCRTPoly& publicKey);
+
+// Equality function
+[[nodiscard]] bool ArePublicKeysEqual(const PublicKeyDCRTPoly& a,
+    const PublicKeyDCRTPoly& b);
+
 } // openfhe

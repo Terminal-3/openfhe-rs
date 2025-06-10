@@ -26,4 +26,12 @@ public:
 // Generator functions
 [[nodiscard]] std::unique_ptr<CiphertextDCRTPoly> DCRTPolyGenNullCiphertext();
 
+
+// Clone function
+[[nodiscard]] std::unique_ptr<CiphertextDCRTPoly> DCRTPolyCloneCiphertext(
+    const CiphertextDCRTPoly& ciphertext);
+
+// Equality function
+[[nodiscard]] bool AreCiphertextsEqual(const CiphertextDCRTPoly& a,
+    const CiphertextDCRTPoly& b);
 } // openfhe

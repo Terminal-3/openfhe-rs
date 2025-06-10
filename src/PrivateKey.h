@@ -25,4 +25,12 @@ public:
 
 [[nodiscard]] std::unique_ptr<PrivateKeyDCRTPoly> DCRTPolyGenNullPrivateKey();
 
+// Clone function
+[[nodiscard]] std::unique_ptr<PrivateKeyDCRTPoly> DCRTPolyClonePrivateKey(
+    const PrivateKeyDCRTPoly& privateKey);
+
+// Equality function
+[[nodiscard]] bool ArePrivateKeysEqual(const PrivateKeyDCRTPoly& a,
+    const PrivateKeyDCRTPoly& b);
+
 } // openfhe

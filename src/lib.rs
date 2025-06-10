@@ -6,6 +6,9 @@ pub use cxx;
 use cxx::SharedPtr;
 use cxx::{let_cxx_string, CxxVector};
 
+pub mod keys;
+pub mod params;
+
 #[cxx::bridge(namespace = "openfhe")]
 pub mod ffi {
 
@@ -219,6 +222,10 @@ pub mod ffi {
     unsafe extern "C++" {
         // Generator functions
         fn DCRTPolyGenNullCiphertext() -> UniquePtr<CiphertextDCRTPoly>;
+        // Clone function
+        fn DCRTPolyCloneCiphertext(
+            ciphertext: &CiphertextDCRTPoly,
+        ) -> UniquePtr<CiphertextDCRTPoly>;
     }
 
     // CryptoContextDCRTPoly
@@ -1478,12 +1485,22 @@ pub mod ffi {
     unsafe extern "C++" {
         // Generator functions
         fn DCRTPolyGenNullPublicKey() -> UniquePtr<PublicKeyDCRTPoly>;
+        // Clone function
+        fn DCRTPolyClonePublicKey(publicKey: &PublicKeyDCRTPoly) -> UniquePtr<PublicKeyDCRTPoly>;
+        // Equality function
+        fn ArePublicKeysEqual(a: &PublicKeyDCRTPoly, b: &PublicKeyDCRTPoly) -> bool;
     }
 
     // PrivateKeyDCRTPoly
     unsafe extern "C++" {
         // Generator functions
         fn DCRTPolyGenNullPrivateKey() -> UniquePtr<PrivateKeyDCRTPoly>;
+        // Clone function
+        fn DCRTPolyClonePrivateKey(
+            privateKey: &PrivateKeyDCRTPoly,
+        ) -> UniquePtr<PrivateKeyDCRTPoly>;
+        // Equality function
+        fn ArePrivateKeysEqual(a: &PrivateKeyDCRTPoly, b: &PrivateKeyDCRTPoly) -> bool;
     }
 
     // Serialize / Deserialize
@@ -1583,6 +1600,15 @@ pub mod ffi {
             serialMode: SerialMode,
         ) -> bool;
 
+        fn DCRTPolyDeserializePublicKeyFromBytes(
+            bytes: &CxxVector<u8>,
+            publicKey: Pin<&mut PublicKeyDCRTPoly>,
+        ) -> bool;
+        fn DCRTPolySerializePublicKeyToBytes(
+            publicKey: &PublicKeyDCRTPoly,
+            out_bytes: Pin<&mut CxxVector<u8>>,
+        ) -> bool;
+
         // PrivateKey
         fn DCRTPolyDeserializePrivateKeyFromFile(
             privateKeyLocation: &CxxString,
@@ -1593,6 +1619,15 @@ pub mod ffi {
             privateKeyLocation: &CxxString,
             privateKey: &PrivateKeyDCRTPoly,
             serialMode: SerialMode,
+        ) -> bool;
+
+        fn DCRTPolyDeserializePrivateKeyFromBytes(
+            bytes: &CxxVector<u8>,
+            privateKey: Pin<&mut PrivateKeyDCRTPoly>,
+        ) -> bool;
+        fn DCRTPolySerializePrivateKeyToBytes(
+            privateKey: &PrivateKeyDCRTPoly,
+            out_bytes: Pin<&mut CxxVector<u8>>,
         ) -> bool;
     }
 
