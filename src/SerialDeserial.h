@@ -2,7 +2,11 @@
 
 #include "SerialMode.h"
 
+
 #include <string>
+#include <vector>   // For std::vector
+#include <cstdint>  // For uint8_t
+
 
 namespace openfhe
 {
@@ -17,6 +21,15 @@ class PublicKeyDCRTPoly;
     CiphertextDCRTPoly& ciphertext, const SerialMode serialMode);
 [[nodiscard]] bool DCRTPolySerializeCiphertextToFile(const std::string& ciphertextLocation,
     const CiphertextDCRTPoly& ciphertext, const SerialMode serialMode);
+
+[[nodiscard]] bool DCRTPolyDeserializeCiphertextFromBytes(const std::vector<uint8_t>& bytes,
+    CiphertextDCRTPoly& ciphertext);
+[[nodiscard]] bool DCRTPolySerializeCiphertextToBytes(
+    const CiphertextDCRTPoly& ciphertext,
+    std::vector<uint8_t>& out_bytes);
+
+[[nodiscard]] bool AreCiphertextsEqual(const CiphertextDCRTPoly& a,
+    const CiphertextDCRTPoly& b);
 
 // CryptoContext
 [[nodiscard]] bool DCRTPolyDeserializeCryptoContextFromFile(const std::string& ccLocation,

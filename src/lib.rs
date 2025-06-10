@@ -1500,6 +1500,17 @@ pub mod ffi {
             serialMode: SerialMode,
         ) -> bool;
 
+        fn DCRTPolyDeserializeCiphertextFromBytes(
+            bytes: &CxxVector<u8>,
+            ciphertext: Pin<&mut CiphertextDCRTPoly>,
+        ) -> bool;
+        fn DCRTPolySerializeCiphertextToBytes(
+            ciphertext: &CiphertextDCRTPoly,
+            out_bytes: Pin<&mut CxxVector<u8>>,
+        ) -> bool;
+
+        fn AreCiphertextsEqual(a: &CiphertextDCRTPoly, b: &CiphertextDCRTPoly) -> bool;
+
         // CryptoContextDCRTPoly
         fn DCRTPolyDeserializeCryptoContextFromFile(
             ccLocation: &CxxString,

@@ -7,6 +7,8 @@
 #include "PrivateKey.h"
 #include "PublicKey.h"
 
+#include <sstream>
+
 namespace openfhe
 {
 
@@ -56,6 +58,53 @@ template <typename ST, typename Stream, typename FStream, typename... Types>
     const std::unique_ptr<FStream, decltype(close)> fs(
         new FStream(location, std::ios::binary), close);
     return fs->is_open() ? funcPtr(*fs, ST{}, args...) : false;
+}
+
+
+bool DCRTPolyDeserializeCiphertextFromBytes(const std::vector<uint8_t>& bytes,
+    CiphertextDCRTPoly& ciphertext)
+{
+    try {
+        std::string byte_string(bytes.begin(), bytes.end());
+        std::stringstream stream(byte_string);
+        lbcrypto::Serial::Deserialize(ciphertext.GetRef(), stream, lbcrypto::SerType::SERBINARY());
+        return true; // Success
+    } catch (const std::exception& e) {
+        // TODO: could log the error here if there isa logging mechanism
+        // std::cerr << "Deserialization failed: " << e.what() << std::endl;
+        return false; // Failure
+    }
+}
+
+bool DCRTPolySerializeCiphertextToBytes(const CiphertextDCRTPoly& ciphertext,
+    std::vector<uint8_t>& out_bytes)
+{
+    // 1. Create an in-memory output string stream. This object behaves like
+    //    std::cout or a file stream, but it writes data to an internal string buffer.
+    std::ostringstream stream;
+
+    try {
+
+        // Call the library's serialization function. It will write the binary
+        lbcrypto::Serial::Serialize(ciphertext.GetRef(), stream, lbcrypto::SerType::SERBINARY());
+        // Extract the contents of the stream into a std::string. This copies the bytes exactly and there is no
+        // guarantee about valid utf-8 unlike in other programming languages.
+        // in C++20 there is a better method to do this without copying the bytes which is stream.view()
+        std::string str = stream.str();
+        out_bytes.assign(str.begin(), str.end());
+        return true;
+    } catch (const std::exception& e) {
+        // TODO: could log the error here if there is a logging mechanism
+        // std::cerr << "Serialization failed: " << e.what() << std::endl;
+        return false; // Failure
+    }
+
+}
+
+bool AreCiphertextsEqual(const CiphertextDCRTPoly& a, const CiphertextDCRTPoly& b)
+{
+    /// instead of shallow comparison, let's subtract the ciphertexts and check if the result is zero
+    return a.GetRef() == b.GetRef();
 }
 
 // Ciphertext
