@@ -7,10 +7,33 @@ use std::sync::Mutex;
 /// It can be cloned, compared, and serialized.
 pub struct PublicKey(pub(crate) UniquePtr<ffi::PublicKeyDCRTPoly>);
 
+impl PublicKey {
+    pub fn new(key: UniquePtr<ffi::PublicKeyDCRTPoly>) -> Self {
+        PublicKey(key)
+    }
+    pub fn as_ref(&self) -> &UniquePtr<ffi::PublicKeyDCRTPoly> {
+        &self.0
+    }
+    pub fn as_mut(&mut self) -> &mut UniquePtr<ffi::PublicKeyDCRTPoly> {
+        &mut self.0
+    }
+}
+
 /// A wrapper for a secret key.
 /// It is not cloneable or serializable to enforce security best practices.
 pub struct SecretKey(pub(crate) UniquePtr<ffi::PrivateKeyDCRTPoly>);
 
+impl SecretKey {
+    pub fn new(key: UniquePtr<ffi::PrivateKeyDCRTPoly>) -> Self {
+        SecretKey(key)
+    }
+    pub fn as_ref(&self) -> &UniquePtr<ffi::PrivateKeyDCRTPoly> {
+        &self.0
+    }
+    pub fn as_mut(&mut self) -> &mut UniquePtr<ffi::PrivateKeyDCRTPoly> {
+        &mut self.0
+    }
+}
 /// A key pair containing both a public and a secret key.
 pub struct KeyPair(pub(crate) UniquePtr<ffi::KeyPairDCRTPoly>);
 
