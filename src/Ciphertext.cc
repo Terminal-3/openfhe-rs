@@ -28,13 +28,20 @@ std::unique_ptr<CiphertextDCRTPoly> DCRTPolyGenNullCiphertext()
 }
 
 // Clone function
-// need to add mutex lock here
 std::unique_ptr<CiphertextDCRTPoly> DCRTPolyCloneCiphertext(
     const CiphertextDCRTPoly& ciphertext)
 {
-    // need to add mutex lock here
     std::lock_guard<std::mutex> lock(ciphertext_clone_mutex);
-    return std::make_unique<CiphertextDCRTPoly>(ciphertext.GetRef() -> Clone());
+    
+    // Check if the ciphertext has a valid internal object
+    const auto& ref = ciphertext.GetRef();
+    if (!ref) {
+        // If the source ciphertext is null, return a null ciphertext
+        return std::make_unique<CiphertextDCRTPoly>();
+    }
+    
+    // Clone the actual ciphertext
+    return std::make_unique<CiphertextDCRTPoly>(ref->Clone());
 }
 
 // Equality function
