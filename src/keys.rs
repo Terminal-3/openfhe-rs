@@ -184,6 +184,19 @@ mod tests {
 
         (cc, key_pair)
     }
+    /// Helper function to create a crypto context and key pair for testing
+    fn create_test_crypto_context() -> cxx::UniquePtr<ffi::CryptoContextDCRTPoly> {
+        let mut cc_params_bfvrns = ffi::GenParamsBFVRNS();
+        cc_params_bfvrns.pin_mut().SetPlaintextModulus(65537);
+        cc_params_bfvrns.pin_mut().SetMultiplicativeDepth(1);
+
+        let cc = ffi::DCRTPolyGenCryptoContextByParamsBFVRNS(&cc_params_bfvrns);
+        cc.EnableByFeature(ffi::PKESchemeFeature::PKE);
+        cc.EnableByFeature(ffi::PKESchemeFeature::KEYSWITCH);
+        cc.EnableByFeature(ffi::PKESchemeFeature::LEVELEDSHE);
+
+        cc
+    }
 
     #[test]
     fn test_keypair_public_key_extraction() {
@@ -618,5 +631,228 @@ mod tests {
         assert_ne!(deserialized1, deserialized2);
         assert_eq!(public_key1, deserialized1);
         assert_eq!(public_key2, deserialized2);
+    }
+
+    #[test]
+    fn test_concurrent_crypto_operations() {
+        use std::sync::{Arc, Barrier};
+        use std::thread;
+        use std::time::Duration;
+
+        const NUM_THREADS: usize = 8;
+        const ITERATIONS_PER_THREAD: usize = 50;
+
+        // Create a barrier to synchronize thread startup
+        let barrier = Arc::new(Barrier::new(NUM_THREADS));
+        let mut handles = Vec::new();
+
+        // Track any panics that occur
+        let panic_counter = Arc::new(Mutex::new(0));
+
+        for thread_id in 0..NUM_THREADS {
+            let barrier_clone = Arc::clone(&barrier);
+            let panic_counter_clone = Arc::clone(&panic_counter);
+
+            let handle = thread::spawn(move || {
+                // Wait for all threads to be ready
+                barrier_clone.wait();
+
+                // Small random delay to increase chance of race conditions
+                thread::sleep(Duration::from_millis((thread_id * 10) as u64));
+
+                for iteration in 0..ITERATIONS_PER_THREAD {
+                    // Catch any panics/segfaults
+                    let result = std::panic::catch_unwind(|| {
+                        // Create crypto context and key pair
+                        let (_cc, key_pair) = create_test_crypto_context_and_keypair();
+
+                        // Extract keys
+                        let public_key = key_pair.public_key();
+                        let secret_key = key_pair.secret_key();
+
+                        // Clone operations
+                        let public_key_clone = public_key.clone();
+                        let secret_key_clone = secret_key.clone();
+
+                        // Equality checks
+                        assert_eq!(public_key, public_key_clone);
+                        assert_eq!(secret_key, secret_key_clone);
+
+                        // Serialization operations
+                        let pub_serialized = bincode::serialize(&public_key)
+                            .expect("Public key serialization should succeed");
+                        let sec_serialized = bincode::serialize(&secret_key)
+                            .expect("Secret key serialization should succeed");
+
+                        // Deserialization operations
+                        let _pub_deserialized: PublicKey = bincode::deserialize(&pub_serialized)
+                            .expect("Public key deserialization should succeed");
+                        let _sec_deserialized: SecretKey = bincode::deserialize(&sec_serialized)
+                            .expect("Secret key deserialization should succeed");
+
+                        // Debug formatting
+                        let _pub_debug = format!("{:?}", public_key);
+                        let _sec_debug = format!("{:?}", secret_key);
+
+                        // FFI serialization operations
+                        let mut out_bytes = CxxVector::<u8>::new();
+                        ffi::DCRTPolySerializePublicKeyToBytes(
+                            public_key.0.as_ref().unwrap(),
+                            out_bytes.pin_mut(),
+                        );
+
+                        let mut sec_out_bytes = CxxVector::<u8>::new();
+                        ffi::DCRTPolySerializePrivateKeyToBytes(
+                            secret_key.0.as_ref().unwrap(),
+                            sec_out_bytes.pin_mut(),
+                        );
+
+                        // Create another key pair to test inequality
+                        let (_cc2, key_pair2) = create_test_crypto_context_and_keypair();
+                        let public_key2 = key_pair2.public_key();
+                        let secret_key2 = key_pair2.secret_key();
+
+                        // Test inequality (this often triggers the segfault)
+                        assert_ne!(public_key, public_key2);
+                        assert_ne!(secret_key, secret_key2);
+
+                        // Test equality comparisons via FFI
+                        assert!(ffi::ArePublicKeysEqual(&public_key.0, &public_key_clone.0));
+                        assert!(ffi::ArePrivateKeysEqual(&secret_key.0, &secret_key_clone.0));
+                        assert!(!ffi::ArePublicKeysEqual(&public_key.0, &public_key2.0));
+                        assert!(!ffi::ArePrivateKeysEqual(&secret_key.0, &secret_key2.0));
+                    });
+
+                    if result.is_err() {
+                        let mut counter = panic_counter_clone.lock().unwrap();
+                        *counter += 1;
+                        eprintln!(
+                            "Thread {} panic at iteration {}: {:?}",
+                            thread_id, iteration, result
+                        );
+                        break; // Exit this thread's loop on panic
+                    }
+
+                    // Small delay between iterations
+                    if iteration % 10 == 0 {
+                        thread::sleep(Duration::from_millis(1));
+                    }
+                }
+
+                println!("Thread {} completed successfully", thread_id);
+            });
+
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        for (i, handle) in handles.into_iter().enumerate() {
+            match handle.join() {
+                Ok(_) => println!("Thread {} joined successfully", i),
+                Err(e) => {
+                    eprintln!("Thread {} panicked: {:?}", i, e);
+                    let mut counter = panic_counter.lock().unwrap();
+                    *counter += 1;
+                }
+            }
+        }
+
+        let final_panic_count = *panic_counter.lock().unwrap();
+
+        if final_panic_count > 0 {
+            panic!(
+                "Concurrent test detected {} panics/segfaults. This indicates thread safety issues!",
+                final_panic_count
+            );
+        }
+
+        println!("Concurrent test completed successfully - no thread safety issues detected");
+    }
+
+    #[test]
+    fn test_stress_crypto_context_creation() {
+        use std::sync::{Arc, Barrier};
+        use std::thread;
+
+        const NUM_THREADS: usize = 4;
+        const CONTEXTS_PER_THREAD: usize = 20;
+
+        let barrier = Arc::new(Barrier::new(NUM_THREADS));
+        let mut handles = Vec::new();
+
+        for thread_id in 0..NUM_THREADS {
+            let barrier_clone = Arc::clone(&barrier);
+
+            let handle = thread::spawn(move || {
+                barrier_clone.wait();
+
+                let mut contexts_and_keypairs = Vec::new();
+
+                // Create multiple contexts rapidly
+                for i in 0..CONTEXTS_PER_THREAD {
+                    let result =
+                        std::panic::catch_unwind(|| create_test_crypto_context_and_keypair());
+
+                    match result {
+                        Ok((cc, key_pair)) => {
+                            // Store them to prevent immediate destruction
+                            contexts_and_keypairs.push((cc, key_pair));
+
+                            // Perform some operations
+                            if let Some((_, last_key_pair)) = contexts_and_keypairs.last() {
+                                let public_key = last_key_pair.public_key();
+                                let _cloned = public_key.clone();
+                                let _debug = format!("{:?}", public_key);
+                            }
+                        }
+                        Err(e) => {
+                            panic!(
+                                "Thread {} panicked at context creation {}: {:?}",
+                                thread_id, i, e
+                            );
+                        }
+                    }
+                }
+
+                println!(
+                    "Thread {} created {} contexts successfully",
+                    thread_id, CONTEXTS_PER_THREAD
+                );
+
+                // Test operations on all created contexts
+                for (i, (_, key_pair)) in contexts_and_keypairs.iter().enumerate() {
+                    // Extract the keys first, outside of catch_unwind
+                    let public_key = key_pair.public_key();
+                    let secret_key = key_pair.secret_key();
+
+                    let result = std::panic::catch_unwind(|| {
+                        // Serialize/deserialize
+                        let pub_bytes = bincode::serialize(&public_key).unwrap();
+                        let sec_bytes = bincode::serialize(&secret_key).unwrap();
+
+                        let _: PublicKey = bincode::deserialize(&pub_bytes).unwrap();
+                        let _: SecretKey = bincode::deserialize(&sec_bytes).unwrap();
+                    });
+
+                    if result.is_err() {
+                        panic!(
+                            "Thread {} panicked during operations on context {}: {:?}",
+                            thread_id, i, result
+                        );
+                    }
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        for (i, handle) in handles.into_iter().enumerate() {
+            match handle.join() {
+                Ok(_) => println!("Stress test thread {} completed successfully", i),
+                Err(e) => panic!("Stress test thread {} panicked: {:?}", i, e),
+            }
+        }
+
+        println!("Stress test completed successfully");
     }
 }

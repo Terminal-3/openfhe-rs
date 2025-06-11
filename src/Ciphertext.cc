@@ -1,6 +1,8 @@
 #include "Ciphertext.h"
+#include "EqualityUtils.h"
 
 #include "openfhe/pke/ciphertext.h"
+
 
 namespace openfhe
 {
@@ -33,19 +35,7 @@ std::unique_ptr<CiphertextDCRTPoly> DCRTPolyCloneCiphertext(
 // Equality function
 bool AreCiphertextsEqual(const CiphertextDCRTPoly& a, const CiphertextDCRTPoly& b)
 {
-
-    // Quick check: if they're the same object, they're definitely equal
-    if (a.GetRef() == b.GetRef()) {
-        return true;
-    }
-    
-    // If either key is null/empty, they can only be equal if both are null
-    if (!a.GetRef() || !b.GetRef()) {
-        return !a.GetRef() && !b.GetRef();
-    }
-    
-    // Use the underlying PublicKeyImpl's operator== which compares actual key content
-    return *a.GetRef() == *b.GetRef();
+    return AreObjectsEqual(a, b);
 }
 
 } // openfhe

@@ -23,8 +23,13 @@
 #include "SchemeBase.h"
 #include "SequenceContainers.h"
 
+#include <mutex>
+
 namespace openfhe
 {
+
+// Global mutex to protect thread-unsafe operations in OpenFHE
+static std::mutex g_openfhe_mutex;
 
 using PlaintextImpl = lbcrypto::PlaintextImpl;
 
@@ -772,6 +777,7 @@ std::unique_ptr<CiphertextDCRTPoly> CryptoContextDCRTPoly::IntMPBootRandomElemen
 }
 std::unique_ptr<KeyPairDCRTPoly> CryptoContextDCRTPoly::KeyGen() const
 {
+    // std::lock_guard<std::mutex> lock(g_openfhe_mutex);
     return std::make_unique<KeyPairDCRTPoly>(m_cryptoContextImplSharedPtr->KeyGen());
 }
 std::unique_ptr<CiphertextDCRTPoly> CryptoContextDCRTPoly::KeySwitch(
@@ -1051,6 +1057,7 @@ std::shared_ptr<CryptoContextImpl>& CryptoContextDCRTPoly::GetRef() noexcept
 // cxx currently does not support static class methods
 void DCRTPolyClearEvalAutomorphismKeys()
 {
+    // std::lock_guard<std::mutex> lock(g_openfhe_mutex);
     CryptoContextImpl::ClearEvalAutomorphismKeys();
 }
 void DCRTPolyClearEvalAutomorphismKeysByCryptoContext(const CryptoContextDCRTPoly& cryptoContext)
@@ -1138,6 +1145,7 @@ std::unique_ptr<SetOfUints> DCRTPolyGetUniqueValues(const SetOfUints& oldValues,
 void DCRTPolyInsertEvalAutomorphismKey(const MapFromIndexToEvalKey& evalKeyMap,
     const std::string& keyTag)
 {
+    // std::lock_guard<std::mutex> lock(g_openfhe_mutex);
     CryptoContextImpl::InsertEvalAutomorphismKey(evalKeyMap.GetRef(), keyTag);
 }
 void DCRTPolyInsertEvalMultKey(const VectorOfEvalKeys& evalKeyVec)
@@ -1153,20 +1161,24 @@ void DCRTPolyInsertEvalSumKey(const MapFromIndexToEvalKey& mapToInsert, const st
 std::unique_ptr<CryptoContextDCRTPoly> DCRTPolyGenCryptoContextByParamsBFVRNS(
     const ParamsBFVRNS& params)
 {
+    std::lock_guard<std::mutex> lock(g_openfhe_mutex);
     return std::make_unique<CryptoContextDCRTPoly>(params);
 }
 std::unique_ptr<CryptoContextDCRTPoly> DCRTPolyGenCryptoContextByParamsBGVRNS(
     const ParamsBGVRNS& params)
 {
+    std::lock_guard<std::mutex> lock(g_openfhe_mutex);
     return std::make_unique<CryptoContextDCRTPoly>(params);
 }
 std::unique_ptr<CryptoContextDCRTPoly> DCRTPolyGenCryptoContextByParamsCKKSRNS(
     const ParamsCKKSRNS& params)
 {
+    std::lock_guard<std::mutex> lock(g_openfhe_mutex);
     return std::make_unique<CryptoContextDCRTPoly>(params);
 }
 std::unique_ptr<CryptoContextDCRTPoly> DCRTPolyGenNullCryptoContext()
 {
+    std::lock_guard<std::mutex> lock(g_openfhe_mutex);
     return std::make_unique<CryptoContextDCRTPoly>();
 }
 
