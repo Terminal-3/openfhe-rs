@@ -1635,6 +1635,16 @@ pub mod ffi {
             privateKey: &PrivateKeyDCRTPoly,
             out_bytes: Pin<&mut CxxVector<u8>>,
         ) -> bool;
+
+        // DecryptionShareVec
+        fn DCRTPolyDeserializeDecryptionShareVecFromBytes(
+            bytes: &CxxVector<u8>,
+            decryptionShareVec: Pin<&mut VectorOfCiphertexts>,
+        ) -> bool;
+        fn DCRTPolySerializeDecryptionShareVecToBytes(
+            decryptionShareVec: &VectorOfCiphertexts,
+            out_bytes: Pin<&mut CxxVector<u8>>,
+        ) -> bool;
     }
 
     // Trapdoor

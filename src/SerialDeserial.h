@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SequenceContainers.h"
 #include "SerialMode.h"
 
 
@@ -81,5 +82,13 @@ class PublicKeyDCRTPoly;
     PrivateKeyDCRTPoly& privateKey);
 [[nodiscard]] bool DCRTPolySerializePrivateKeyToBytes(const PrivateKeyDCRTPoly& privateKey,
     std::vector<uint8_t>& out_bytes);
+
+// DecryptionShareVec
+[[nodiscard]] bool DCRTPolyDeserializeDecryptionShareVecFromBytes(const std::vector<uint8_t>& bytes,
+    VectorOfCiphertexts& decryptionShareVec);
+[[nodiscard]] bool DCRTPolySerializeDecryptionShareVecToBytes(
+    const VectorOfCiphertexts& decryptionShareVec, std::vector<uint8_t>& out_bytes);
+
+
 
 } // openfhe

@@ -353,4 +353,35 @@ bool DCRTPolySerializePrivateKeyToBytes(const PrivateKeyDCRTPoly& privateKey,
         return false; // Failure
     }
 }
+
+// DecryptionShareVec
+bool DCRTPolyDeserializeDecryptionShareVecFromBytes(const std::vector<uint8_t>& bytes,
+    VectorOfCiphertexts& decryptionShareVec)
+{
+    try {
+        std::string byte_string(bytes.begin(), bytes.end());
+        std::stringstream stream(byte_string);
+        lbcrypto::Serial::Deserialize(decryptionShareVec.GetRef(), stream, lbcrypto::SerType::SERBINARY());
+        return true; // Success
+    } catch (const std::exception& e) {
+        return false; // Failure
+    }
+}
+
+bool DCRTPolySerializeDecryptionShareVecToBytes(const VectorOfCiphertexts& decryptionShareVec,
+    std::vector<uint8_t>& out_bytes)
+{
+    std::ostringstream stream;
+    try {
+        lbcrypto::Serial::Serialize(decryptionShareVec.GetRef(), stream, lbcrypto::SerType::SERBINARY());
+        std::string str = stream.str();
+        out_bytes.assign(str.begin(), str.end());
+        return true;
+    } catch (const std::exception& e) {
+        return false; // Failure
+    }
+}
+
+
+
 } // openfhe

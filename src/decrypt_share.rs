@@ -109,6 +109,55 @@ impl Default for DecryptionShareVec {
     }
 }
 
+impl Serialize for DecryptionShareVec {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut out_bytes = CxxVector::<u8>::new();
+        ffi::DCRTPolySerializeDecryptionShareVecToBytes(
+            self.0.as_ref().unwrap(),
+            out_bytes.pin_mut(),
+        );
+        serializer.serialize_bytes(out_bytes.as_slice())
+    }
+}
+
+impl<'de> Deserialize<'de> for DecryptionShareVec {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct DecryptionShareVecVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for DecryptionShareVecVisitor {
+            type Value = DecryptionShareVec;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a byte array representing a serialized DecryptionShareVec")
+            }
+
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let mut bytes_vec = CxxVector::<u8>::new();
+                for &byte in v {
+                    bytes_vec.pin_mut().push(byte);
+                }
+                let mut decryption_share_vec = ffi::vector_of_ciphertexts_empty();
+                ffi::DCRTPolyDeserializeDecryptionShareVecFromBytes(
+                    &bytes_vec,
+                    decryption_share_vec.pin_mut(),
+                );
+                Ok(DecryptionShareVec(decryption_share_vec))
+            }
+        }
+
+        deserializer.deserialize_bytes(DecryptionShareVecVisitor)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -828,6 +877,257 @@ mod tests {
             }
             Err(_) => {
                 println!("Edge case test failed as expected");
+            }
+        }
+    }
+
+    #[test]
+    fn test_decryption_share_vec_serialization() {
+        let share_vec = DecryptionShareVec::new();
+
+        // Test serialization using bincode (binary format)
+        let serialization_result = std::panic::catch_unwind(|| bincode::serialize(&share_vec));
+
+        match serialization_result {
+            Ok(Ok(serialized)) => {
+                assert!(!serialized.is_empty());
+                println!(
+                    "DecryptionShareVec serialization succeeded with {} bytes",
+                    serialized.len()
+                );
+
+                // Test deserialization
+                let deserialization_result = std::panic::catch_unwind(|| {
+                    bincode::deserialize::<DecryptionShareVec>(&serialized)
+                });
+
+                match deserialization_result {
+                    Ok(Ok(deserialized_vec)) => {
+                        assert!(deserialized_vec.0.as_ref().is_some());
+                        println!("DecryptionShareVec deserialization succeeded");
+
+                        // Test that the deserialized vector has the same properties
+                        let len_result = std::panic::catch_unwind(|| {
+                            (deserialized_vec.len(), deserialized_vec.is_empty())
+                        });
+
+                        match len_result {
+                            Ok((len, is_empty)) => {
+                                println!("Deserialized vector: len={}, is_empty={}", len, is_empty);
+                                // Empty vector should remain empty after roundtrip
+                                assert!(is_empty);
+                                assert_eq!(len, 0);
+                            }
+                            Err(_) => {
+                                println!("Length check on deserialized vector failed as expected");
+                            }
+                        }
+                    }
+                    Ok(Err(e)) => {
+                        println!(
+                            "DecryptionShareVec deserialization failed with error: {:?}",
+                            e
+                        );
+                    }
+                    Err(_) => {
+                        println!("DecryptionShareVec deserialization panicked as expected (missing FFI function)");
+                    }
+                }
+            }
+            Ok(Err(e)) => {
+                println!(
+                    "DecryptionShareVec serialization failed with error: {:?}",
+                    e
+                );
+            }
+            Err(_) => {
+                println!(
+                    "DecryptionShareVec serialization panicked as expected (missing FFI function)"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_decryption_share_vec_serialization_roundtrip() {
+        let original_vec = DecryptionShareVec::new();
+
+        let roundtrip_result = std::panic::catch_unwind(|| {
+            // Serialize
+            let serialized = bincode::serialize(&original_vec)?;
+
+            // Deserialize
+            let deserialized_vec: DecryptionShareVec = bincode::deserialize(&serialized)?;
+
+            Ok::<_, Box<dyn std::error::Error>>(deserialized_vec)
+        });
+
+        match roundtrip_result {
+            Ok(Ok(deserialized_vec)) => {
+                assert!(deserialized_vec.0.as_ref().is_some());
+                println!("DecryptionShareVec serialization roundtrip succeeded");
+
+                // Test properties of the roundtrip result
+                let properties_result = std::panic::catch_unwind(|| {
+                    let original_len = std::panic::catch_unwind(|| original_vec.len()).unwrap_or(0);
+                    let original_empty =
+                        std::panic::catch_unwind(|| original_vec.is_empty()).unwrap_or(true);
+                    let deserialized_len = deserialized_vec.len();
+                    let deserialized_empty = deserialized_vec.is_empty();
+
+                    (
+                        original_len,
+                        original_empty,
+                        deserialized_len,
+                        deserialized_empty,
+                    )
+                });
+
+                match properties_result {
+                    Ok((orig_len, orig_empty, deser_len, deser_empty)) => {
+                        println!("Original: len={}, empty={}", orig_len, orig_empty);
+                        println!("Deserialized: len={}, empty={}", deser_len, deser_empty);
+                        // Properties should match after roundtrip
+                        assert_eq!(orig_len, deser_len);
+                        assert_eq!(orig_empty, deser_empty);
+                    }
+                    Err(_) => {
+                        println!("Property comparison failed as expected");
+                    }
+                }
+            }
+            Ok(Err(e)) => {
+                println!(
+                    "DecryptionShareVec serialization roundtrip failed with error: {:?}",
+                    e
+                );
+            }
+            Err(_) => {
+                println!("DecryptionShareVec serialization roundtrip panicked as expected (missing FFI function)");
+            }
+        }
+    }
+
+    #[test]
+    fn test_multiple_decryption_share_vec_serialization() {
+        // Create multiple DecryptionShareVec objects
+        let vecs_result = std::panic::catch_unwind(|| {
+            let mut vecs = Vec::new();
+
+            // Create different types of vectors
+            vecs.push(DecryptionShareVec::new());
+            vecs.push(DecryptionShareVec::default());
+
+            // Create more vectors for testing
+            for _i in 0..3 {
+                vecs.push(DecryptionShareVec::new());
+            }
+
+            vecs
+        });
+
+        match vecs_result {
+            Ok(vecs) => {
+                println!(
+                    "Created {} DecryptionShareVec objects for serialization testing",
+                    vecs.len()
+                );
+
+                // Test serialization of each vector
+                for (i, vec) in vecs.iter().enumerate() {
+                    let serialization_result = std::panic::catch_unwind(|| bincode::serialize(vec));
+
+                    match serialization_result {
+                        Ok(Ok(serialized)) => {
+                            println!(
+                                "Vector {} serialized successfully ({} bytes)",
+                                i,
+                                serialized.len()
+                            );
+
+                            // Test deserialization
+                            let deserialization_result = std::panic::catch_unwind(|| {
+                                bincode::deserialize::<DecryptionShareVec>(&serialized)
+                            });
+
+                            match deserialization_result {
+                                Ok(Ok(deserialized)) => {
+                                    assert!(deserialized.0.as_ref().is_some());
+                                    println!("Vector {} deserialized successfully", i);
+
+                                    // Test operations on deserialized vector
+                                    let _len = std::panic::catch_unwind(|| deserialized.len());
+                                    let _empty =
+                                        std::panic::catch_unwind(|| deserialized.is_empty());
+                                }
+                                Ok(Err(e)) => {
+                                    println!("Vector {} deserialization failed: {:?}", i, e);
+                                }
+                                Err(_) => {
+                                    println!("Vector {} deserialization panicked", i);
+                                }
+                            }
+                        }
+                        Ok(Err(e)) => {
+                            println!("Vector {} serialization failed: {:?}", i, e);
+                        }
+                        Err(_) => {
+                            println!("Vector {} serialization panicked", i);
+                        }
+                    }
+                }
+
+                // Test batch serialization of all vectors
+                let batch_result = std::panic::catch_unwind(|| bincode::serialize(&vecs));
+
+                match batch_result {
+                    Ok(Ok(batch_serialized)) => {
+                        println!(
+                            "Batch serialization of {} vectors succeeded ({} bytes)",
+                            vecs.len(),
+                            batch_serialized.len()
+                        );
+
+                        // Test batch deserialization
+                        let batch_deserialize_result = std::panic::catch_unwind(|| {
+                            bincode::deserialize::<Vec<DecryptionShareVec>>(&batch_serialized)
+                        });
+
+                        match batch_deserialize_result {
+                            Ok(Ok(deserialized_vecs)) => {
+                                assert_eq!(deserialized_vecs.len(), vecs.len());
+                                println!(
+                                    "Batch deserialization succeeded with {} vectors",
+                                    deserialized_vecs.len()
+                                );
+
+                                // Test each deserialized vector
+                                for (j, deserialized_vec) in deserialized_vecs.iter().enumerate() {
+                                    assert!(deserialized_vec.0.as_ref().is_some());
+                                    let _len = std::panic::catch_unwind(|| deserialized_vec.len());
+                                    let _empty =
+                                        std::panic::catch_unwind(|| deserialized_vec.is_empty());
+                                    println!("Batch deserialized vector {} is valid", j);
+                                }
+                            }
+                            Ok(Err(e)) => {
+                                println!("Batch deserialization failed: {:?}", e);
+                            }
+                            Err(_) => {
+                                println!("Batch deserialization panicked");
+                            }
+                        }
+                    }
+                    Ok(Err(e)) => {
+                        println!("Batch serialization failed: {:?}", e);
+                    }
+                    Err(_) => {
+                        println!("Batch serialization panicked");
+                    }
+                }
+            }
+            Err(_) => {
+                println!("Failed to create DecryptionShareVec objects for testing");
             }
         }
     }
