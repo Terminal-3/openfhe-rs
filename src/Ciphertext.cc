@@ -7,6 +7,8 @@
 namespace openfhe
 {
 
+std::mutex ciphertext_clone_mutex;
+
 CiphertextDCRTPoly::CiphertextDCRTPoly(std::shared_ptr<CiphertextImpl>&& ciphertext) noexcept
     : m_ciphertext(std::move(ciphertext))
 { }
@@ -26,9 +28,12 @@ std::unique_ptr<CiphertextDCRTPoly> DCRTPolyGenNullCiphertext()
 }
 
 // Clone function
+// need to add mutex lock here
 std::unique_ptr<CiphertextDCRTPoly> DCRTPolyCloneCiphertext(
     const CiphertextDCRTPoly& ciphertext)
 {
+    // need to add mutex lock here
+    std::lock_guard<std::mutex> lock(ciphertext_clone_mutex);
     return std::make_unique<CiphertextDCRTPoly>(ciphertext.GetRef() -> Clone());
 }
 

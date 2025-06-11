@@ -15,6 +15,10 @@ std::vector<std::shared_ptr<CiphertextImpl>>& VectorOfCiphertexts::GetRef() noex
 {
     return m_ciphertexts;
 }
+size_t VectorOfCiphertexts::Len() const noexcept
+{
+    return m_ciphertexts.size();
+}
 
 VectorOfDCRTPolys::VectorOfDCRTPolys(
     std::shared_ptr<std::vector<lbcrypto::DCRTPoly>>&& elements) noexcept

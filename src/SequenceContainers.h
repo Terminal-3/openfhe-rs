@@ -22,6 +22,7 @@ public:
 
     [[nodiscard]] const std::vector<std::shared_ptr<CiphertextImpl>>& GetRef() const noexcept;
     [[nodiscard]] std::vector<std::shared_ptr<CiphertextImpl>>& GetRef() noexcept;
+    [[nodiscard]] size_t Len() const noexcept;
 };
 
 class VectorOfDCRTPolys final
