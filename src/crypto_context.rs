@@ -32,6 +32,20 @@ impl Debug for CryptoContext {
 impl CryptoContext {
     /// Generates a new `CryptoContext` from the given parameters.
     pub fn new(params: &Params) -> Self {
+        let mut cc = ffi::DCRTPolyGenCryptoContextByParamsBFVRNS(&params.0);
+        // Enable required features
+        cc.as_mut()
+            .unwrap()
+            .EnableByFeature(ffi::PKESchemeFeature::PKE);
+        cc.as_mut()
+            .unwrap()
+            .EnableByFeature(ffi::PKESchemeFeature::KEYSWITCH);
+        cc.as_mut()
+            .unwrap()
+            .EnableByFeature(ffi::PKESchemeFeature::MULTIPARTY);
+        CryptoContext(cc)
+    }
+    pub fn new_without_features(params: &Params) -> Self {
         let cc = ffi::DCRTPolyGenCryptoContextByParamsBFVRNS(&params.0);
         CryptoContext(cc)
     }
