@@ -1,6 +1,7 @@
 #pragma once
 
 #include "openfhe/core/lattice/hal/lat-backend.h"
+#include "rust/cxx.h"
 
 namespace lbcrypto
 {
@@ -26,6 +27,12 @@ public:
     CryptoParametersBaseDCRTPoly(CryptoParametersBaseDCRTPoly&&) = delete;
     CryptoParametersBaseDCRTPoly& operator=(const CryptoParametersBaseDCRTPoly&) = delete;
     CryptoParametersBaseDCRTPoly& operator=(CryptoParametersBaseDCRTPoly&&) = delete;
+    
+    // Public getter method to access the private member
+    const std::shared_ptr<CryptoParametersBase>& GetCryptoParameters() const noexcept { return m_cryptoParametersBase; }
 };
+
+// add a function for the crypto parameters to be converted to a string
+rust::String CryptoParametersBaseDCRTPolyToString(const CryptoParametersBaseDCRTPoly& cryptoParameters);
 
 } // openfhe

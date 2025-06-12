@@ -234,6 +234,9 @@ pub mod ffi {
 
     // CryptoContextDCRTPoly
     unsafe extern "C++" {
+        fn CryptoParametersBaseDCRTPolyToString(
+            cryptoParameters: &CryptoParametersBaseDCRTPoly,
+        ) -> String;
         fn ComposedEvalMult(
             self: &CryptoContextDCRTPoly,
             ciphertext1: &CiphertextDCRTPoly,

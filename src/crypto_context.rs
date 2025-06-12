@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::{
     ciphertext::Ciphertext, decrypt_share::DecryptionShareVec, ffi, keys::KeyPair, keys::PublicKey,
     keys::SecretKey, params::Params, plaintext::Plaintext,
@@ -6,6 +8,26 @@ use cxx::{CxxVector, UniquePtr};
 
 /// The main crypto context for performing homomorphic encryption operations.
 pub struct CryptoContext(pub(crate) UniquePtr<ffi::CryptoContextDCRTPoly>);
+
+impl Debug for CryptoContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CryptoContext")?;
+        // params
+        write!(
+            f,
+            "params: {:?}",
+            ffi::CryptoParametersBaseDCRTPolyToString(
+                self.0
+                    .as_ref()
+                    .unwrap()
+                    .GetCryptoParameters()
+                    .as_ref()
+                    .unwrap()
+            )
+        )?;
+        Ok(())
+    }
+}
 
 impl CryptoContext {
     /// Generates a new `CryptoContext` from the given parameters.
@@ -124,6 +146,12 @@ mod tests {
         ]);
 
         cc
+    }
+
+    #[test]
+    fn test_crypto_context_debug() {
+        let cc = create_test_crypto_context();
+        println!("cc: {:?}", cc);
     }
 
     #[test]

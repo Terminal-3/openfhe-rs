@@ -15,6 +15,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut cc = CryptoContext::new(&params);
 
+    println!("cc: {:?}", cc);
+
     // Enable required features
     cc.enable_features(&[
         ffi::PKESchemeFeature::PKE,
