@@ -22,7 +22,14 @@ fn main() {
         .define("BUILD_SHARED", "OFF")
         .define("BUILD_EXAMPLES", "OFF")
         .define("BUILD_TESTING", "OFF")
-        .define("WITH_OPENMP", "ON");
+        .define("WITH_OPENMP", "ON")
+        // Enable only the BFV scheme
+        .define("WITH_BE", "OFF") // Disable BinFHE
+        .define("WITH_CKKS", "OFF") // Disable CKKS
+        .define("WITH_BGV", "OFF") // Disable BGV
+        .define("WITH_BFV", "ON") // Enable BFV
+        .define("BUILD_UNITTESTS", "OFF") // Ensure unit tests are off
+        .define("BUILD_STATIC_DEPENDENCIES", "ON"); // Use static dependencies for BFV
 
     if cfg!(target_os = "macos") {
         config.define("RUN_HAVE_STD_REGEX", "0");
