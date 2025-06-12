@@ -20,7 +20,6 @@ impl PublicKey {
 }
 
 /// A wrapper for a secret key.
-/// It is not cloneable or serializable to enforce security best practices.
 pub struct SecretKey(pub(crate) UniquePtr<ffi::PrivateKeyDCRTPoly>);
 
 impl SecretKey {

@@ -38,7 +38,15 @@ impl Params {
 
 impl Default for Params {
     fn default() -> Self {
-        Self::new()
+        let mut params = Self::new();
+        params.set_plaintext_modulus(65537);
+        // params.set_ring_dim(512); // Note: SetRingDim not available in wrapper yet
+        params.set_batch_size(1);
+        params.set_multiplicative_depth(0);
+        // Note: Arguably we don't need noise flooding in TEE execution
+        // without setting noise flooding the size of cyphertext drops from 380Kb to 60 Kb
+        // params.set_multiparty_mode(ffi::MultipartyMode::NOISE_FLOODING_MULTIPARTY);
+        params
     }
 }
 
