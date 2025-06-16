@@ -192,10 +192,7 @@ mod tests {
 
     /// Helper function to create test parameters
     fn create_test_params() -> Params {
-        let mut params = Params::new();
-        params.set_plaintext_modulus(65537);
-        params.set_multiplicative_depth(2);
-        params.set_multiparty_mode(ffi::MultipartyMode::NOISE_FLOODING_MULTIPARTY);
+        let params = Params::default();
         params
     }
 
@@ -203,15 +200,6 @@ mod tests {
     fn create_test_crypto_context() -> CryptoContext {
         let params = create_test_params();
         let mut cc = CryptoContext::new(&params).unwrap();
-
-        cc.enable_features(&[
-            ffi::PKESchemeFeature::PKE,
-            ffi::PKESchemeFeature::KEYSWITCH,
-            ffi::PKESchemeFeature::LEVELEDSHE,
-            ffi::PKESchemeFeature::MULTIPARTY,
-        ])
-        .unwrap();
-
         cc
     }
 
@@ -938,5 +926,65 @@ mod tests {
 
         let kp2 = cc2.key_gen().unwrap();
         assert!(kp2.0.as_ref().is_some());
+    }
+
+    #[test]
+    fn test_crypto_context_roundtrip_decrypt() {
+        let cc = create_test_crypto_context();
+        let key_pair = cc.key_gen().unwrap();
+        let public_key = key_pair.public_key();
+        let secret_key = key_pair.secret_key();
+
+        // Test data sets
+        let test_data_sets = vec![
+            // Sequential numbers from 0 to 32
+            (0..=31).collect::<Vec<i64>>(),
+            // Single value
+            vec![42],
+            // Small range
+            vec![1, 2, 3, 4, 5],
+            // Edge cases
+            vec![0],
+            vec![65536], // Maximum valid value for the modulus
+            // Larger set with gaps
+            vec![0, 5, 10, 15, 20, 25, 30],
+        ];
+
+        for (i, data) in test_data_sets.iter().enumerate() {
+            // Create plaintext
+            let plaintext = cc.make_packed_plaintext(data).unwrap();
+            assert!(
+                plaintext.0.as_ref().is_some(),
+                "Plaintext creation failed for data set {}: {:?}",
+                i,
+                data
+            );
+
+            // Encrypt
+            let ciphertext = cc.encrypt(&public_key, &plaintext).unwrap();
+            assert!(
+                ciphertext.0.as_ref().is_some(),
+                "Encryption failed for data set {}: {:?}",
+                i,
+                data
+            );
+
+            // Decrypt
+            let decrypted = cc.decrypt(&secret_key, &ciphertext).unwrap();
+            let decrypted_positive_values = decrypted
+                .get_packed_value()
+                .iter()
+                .map(|x| if *x < 0 { *x + 65537 } else { *x })
+                .collect::<Vec<i64>>();
+
+            assert_eq!(&decrypted_positive_values[..data.len()], data.as_slice());
+
+            // TODO: Add actual value comparison once we have a way to extract values from Plaintext
+            // For now, we just verify that the decryption operation succeeds
+            println!(
+                "Successfully completed roundtrip for data set {}: {:?}",
+                i, data
+            );
+        }
     }
 }
