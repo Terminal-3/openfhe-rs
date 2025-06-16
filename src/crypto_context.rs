@@ -13,17 +13,13 @@ impl Debug for CryptoContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "CryptoContext")?;
         // params
+        let params = self.0.as_ref().ok_or_else(|| std::fmt::Error)?;
+        let crypto_params = params.GetCryptoParameters();
+        let crypto_params_ref = crypto_params.as_ref().ok_or_else(|| std::fmt::Error)?;
         write!(
             f,
             "params: {:?}",
-            ffi::CryptoParametersBaseDCRTPolyToString(
-                self.0
-                    .as_ref()
-                    .unwrap()
-                    .GetCryptoParameters()
-                    .as_ref()
-                    .unwrap()
-            )
+            ffi::CryptoParametersBaseDCRTPolyToString(crypto_params_ref)
         )?;
         Ok(())
     }
@@ -31,19 +27,19 @@ impl Debug for CryptoContext {
 
 impl CryptoContext {
     /// Generates a new `CryptoContext` from the given parameters.
-    pub fn new(params: &Params) -> Self {
+    pub fn new(params: &Params) -> Result<Self, String> {
         let mut cc = ffi::DCRTPolyGenCryptoContextByParamsBFVRNS(&params.0);
         // Enable required features
         cc.as_mut()
-            .unwrap()
+            .ok_or_else(|| "Failed to get mutable reference to crypto context".to_string())?
             .EnableByFeature(ffi::PKESchemeFeature::PKE);
         cc.as_mut()
-            .unwrap()
+            .ok_or_else(|| "Failed to get mutable reference to crypto context".to_string())?
             .EnableByFeature(ffi::PKESchemeFeature::KEYSWITCH);
         cc.as_mut()
-            .unwrap()
+            .ok_or_else(|| "Failed to get mutable reference to crypto context".to_string())?
             .EnableByFeature(ffi::PKESchemeFeature::MULTIPARTY);
-        CryptoContext(cc)
+        Ok(CryptoContext(cc))
     }
     pub fn new_without_features(params: &Params) -> Self {
         let cc = ffi::DCRTPolyGenCryptoContextByParamsBFVRNS(&params.0);
@@ -51,44 +47,54 @@ impl CryptoContext {
     }
 
     /// Enables a set of cryptographic features.
-    pub fn enable_features(&mut self, features: &[ffi::PKESchemeFeature]) {
+    pub fn enable_features(&mut self, features: &[ffi::PKESchemeFeature]) -> Result<(), String> {
         for &feature in features {
-            self.0.as_mut().unwrap().EnableByFeature(feature);
+            self.0
+                .as_mut()
+                .ok_or_else(|| "Failed to get mutable reference to crypto context".to_string())?
+                .EnableByFeature(feature);
         }
+        Ok(())
     }
 
     /// Generates a new key pair.
-    pub fn key_gen(&self) -> KeyPair {
-        KeyPair(self.0.as_ref().unwrap().KeyGen())
+    pub fn key_gen(&self) -> Result<KeyPair, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(KeyPair(cc.KeyGen()))
     }
 
     /// Generates a new key pair for multiparty computation, using another party's public key.
-    pub fn multiparty_key_gen(&self, pk: &PublicKey) -> KeyPair {
-        KeyPair(
-            self.0
-                .as_ref()
-                .unwrap()
-                .MultipartyKeyGenByPublicKey(&pk.0, false, false),
-        )
+    pub fn multiparty_key_gen(&self, pk: &PublicKey) -> Result<KeyPair, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(KeyPair(cc.MultipartyKeyGenByPublicKey(&pk.0, false, false)))
     }
 
     /// Creates a packed plaintext from a slice of i64 values.
-    pub fn make_packed_plaintext(&self, data: &[i64]) -> Plaintext {
+    pub fn make_packed_plaintext(&self, data: &[i64]) -> Result<Plaintext, String> {
         let mut data_vec = CxxVector::<i64>::new();
         for &x in data {
             data_vec.pin_mut().push(x);
         }
-        Plaintext(
-            self.0
-                .as_ref()
-                .unwrap()
-                .MakePackedPlaintext(&data_vec, 1, 0),
-        )
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(Plaintext(cc.MakePackedPlaintext(&data_vec, 1, 0)))
     }
 
     /// Encrypts a plaintext using a public key.
-    pub fn encrypt(&self, pk: &PublicKey, pt: &Plaintext) -> Ciphertext {
-        Ciphertext(self.0.as_ref().unwrap().EncryptByPublicKey(&pk.0, &pt.0))
+    pub fn encrypt(&self, pk: &PublicKey, pt: &Plaintext) -> Result<Ciphertext, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(Ciphertext(cc.EncryptByPublicKey(&pk.0, &pt.0)))
     }
 
     /// Decrypts a ciphertext using a secret key.
@@ -196,14 +202,15 @@ mod tests {
     /// Helper function to create a crypto context with standard features enabled
     fn create_test_crypto_context() -> CryptoContext {
         let params = create_test_params();
-        let mut cc = CryptoContext::new(&params);
+        let mut cc = CryptoContext::new(&params).unwrap();
 
         cc.enable_features(&[
             ffi::PKESchemeFeature::PKE,
             ffi::PKESchemeFeature::KEYSWITCH,
             ffi::PKESchemeFeature::LEVELEDSHE,
             ffi::PKESchemeFeature::MULTIPARTY,
-        ]);
+        ])
+        .unwrap();
 
         cc
     }
@@ -217,7 +224,7 @@ mod tests {
     #[test]
     fn test_crypto_context_creation() {
         let params = create_test_params();
-        let cc = CryptoContext::new(&params);
+        let cc = CryptoContext::new(&params).unwrap();
 
         // Test that crypto context is created successfully
         assert!(cc.0.as_ref().is_some());
@@ -226,19 +233,22 @@ mod tests {
     #[test]
     fn test_crypto_context_enable_features() {
         let params = create_test_params();
-        let mut cc = CryptoContext::new(&params);
+        let mut cc = CryptoContext::new(&params).unwrap();
 
         // Test enabling individual features
-        cc.enable_features(&[ffi::PKESchemeFeature::PKE]);
-        cc.enable_features(&[ffi::PKESchemeFeature::KEYSWITCH]);
-        cc.enable_features(&[ffi::PKESchemeFeature::LEVELEDSHE]);
+        cc.enable_features(&[ffi::PKESchemeFeature::PKE]).unwrap();
+        cc.enable_features(&[ffi::PKESchemeFeature::KEYSWITCH])
+            .unwrap();
+        cc.enable_features(&[ffi::PKESchemeFeature::LEVELEDSHE])
+            .unwrap();
 
         // Test enabling multiple features at once
         cc.enable_features(&[
             ffi::PKESchemeFeature::PKE,
             ffi::PKESchemeFeature::KEYSWITCH,
             ffi::PKESchemeFeature::LEVELEDSHE,
-        ]);
+        ])
+        .unwrap();
 
         // Should not panic - features can be enabled multiple times
         assert!(cc.0.as_ref().is_some());
@@ -248,7 +258,7 @@ mod tests {
     fn test_crypto_context_key_gen() {
         let cc = create_test_crypto_context();
 
-        let key_pair = cc.key_gen();
+        let key_pair = cc.key_gen().unwrap();
 
         // Test that key pair is generated successfully
         assert!(key_pair.0.as_ref().is_some());
@@ -266,9 +276,9 @@ mod tests {
         let cc = create_test_crypto_context();
 
         // Generate multiple key pairs
-        let key_pair1 = cc.key_gen();
-        let key_pair2 = cc.key_gen();
-        let key_pair3 = cc.key_gen();
+        let key_pair1 = cc.key_gen().unwrap();
+        let key_pair2 = cc.key_gen().unwrap();
+        let key_pair3 = cc.key_gen().unwrap();
 
         // All should be valid but different
         assert!(key_pair1.0.as_ref().is_some());
@@ -290,11 +300,11 @@ mod tests {
         let cc = create_test_crypto_context();
 
         // Generate initial key pair
-        let initial_key_pair = cc.key_gen();
+        let initial_key_pair = cc.key_gen().unwrap();
         let initial_public_key = initial_key_pair.public_key();
 
         // Generate multiparty key pair using the initial public key
-        let multiparty_key_pair = cc.multiparty_key_gen(&initial_public_key);
+        let multiparty_key_pair = cc.multiparty_key_gen(&initial_public_key).unwrap();
 
         // Test that multiparty key pair is generated successfully
         assert!(multiparty_key_pair.0.as_ref().is_some());
@@ -312,35 +322,35 @@ mod tests {
 
         // Test with single value
         let single_data = vec![42];
-        let pt1 = cc.make_packed_plaintext(&single_data);
+        let pt1 = cc.make_packed_plaintext(&single_data).unwrap();
         assert!(pt1.0.as_ref().is_some());
 
         // Test with multiple values
         let multi_data = vec![1, 2, 3, 4, 5];
-        let pt2 = cc.make_packed_plaintext(&multi_data);
+        let pt2 = cc.make_packed_plaintext(&multi_data).unwrap();
         assert!(pt2.0.as_ref().is_some());
 
         // Test with single zero (empty data not supported)
         let zero_data = vec![0];
-        let pt3 = cc.make_packed_plaintext(&zero_data);
+        let pt3 = cc.make_packed_plaintext(&zero_data).unwrap();
         assert!(pt3.0.as_ref().is_some());
 
         // Test with large values (within modulus)
         let large_data = vec![65536, 32768, 16384];
-        let pt4 = cc.make_packed_plaintext(&large_data);
+        let pt4 = cc.make_packed_plaintext(&large_data).unwrap();
         assert!(pt4.0.as_ref().is_some());
     }
 
     #[test]
     fn test_crypto_context_encrypt() {
         let cc = create_test_crypto_context();
-        let key_pair = cc.key_gen();
+        let key_pair = cc.key_gen().unwrap();
         let public_key = key_pair.public_key();
 
         // Create plaintext and encrypt
         let data = vec![1, 2, 3, 4, 5];
-        let plaintext = cc.make_packed_plaintext(&data);
-        let ciphertext = cc.encrypt(&public_key, &plaintext);
+        let plaintext = cc.make_packed_plaintext(&data).unwrap();
+        let ciphertext = cc.encrypt(&public_key, &plaintext).unwrap();
 
         // Test that encryption succeeds
         assert!(ciphertext.0.as_ref().is_some());
@@ -349,7 +359,7 @@ mod tests {
     #[test]
     fn test_crypto_context_encrypt_multiple() {
         let cc = create_test_crypto_context();
-        let key_pair = cc.key_gen();
+        let key_pair = cc.key_gen().unwrap();
         let public_key = key_pair.public_key();
 
         // Encrypt multiple different plaintexts
@@ -362,8 +372,8 @@ mod tests {
         ];
 
         for (i, data) in data_sets.iter().enumerate() {
-            let plaintext = cc.make_packed_plaintext(data);
-            let ciphertext = cc.encrypt(&public_key, &plaintext);
+            let plaintext = cc.make_packed_plaintext(data).unwrap();
+            let ciphertext = cc.encrypt(&public_key, &plaintext).unwrap();
 
             assert!(
                 ciphertext.0.as_ref().is_some(),
@@ -377,14 +387,14 @@ mod tests {
     #[test]
     fn test_crypto_context_multiparty_decrypt_operations() {
         let mut cc = create_test_crypto_context();
-        let key_pair = cc.key_gen();
+        let key_pair = cc.key_gen().unwrap();
         let public_key = key_pair.public_key();
         let secret_key = key_pair.secret_key();
 
         // Create and encrypt plaintext
         let data = vec![1, 2, 3, 4, 5];
-        let plaintext = cc.make_packed_plaintext(&data);
-        let ciphertext = cc.encrypt(&public_key, &plaintext);
+        let plaintext = cc.make_packed_plaintext(&data).unwrap();
+        let ciphertext = cc.encrypt(&public_key, &plaintext).unwrap();
 
         // Test multiparty decrypt operations (these may fail due to missing FFI functions)
         let lead_result = cc.multiparty_decrypt_lead(&ciphertext, &secret_key);
@@ -429,8 +439,8 @@ mod tests {
         let cc1 = create_test_crypto_context();
         let cc2 = create_test_crypto_context();
 
-        let key_pair1 = cc1.key_gen();
-        let key_pair2 = cc2.key_gen();
+        let key_pair1 = cc1.key_gen().unwrap();
+        let key_pair2 = cc2.key_gen().unwrap();
 
         let public_key1 = key_pair1.public_key();
         let public_key2 = key_pair2.public_key();
@@ -439,20 +449,20 @@ mod tests {
         let data1 = vec![1, 2, 3];
         let data2 = vec![4, 5, 6];
 
-        let pt1 = cc1.make_packed_plaintext(&data1);
-        let pt2 = cc2.make_packed_plaintext(&data2);
+        let pt1 = cc1.make_packed_plaintext(&data1).unwrap();
+        let pt2 = cc2.make_packed_plaintext(&data2).unwrap();
 
         // Encrypt in both contexts
-        let _ = cc1.encrypt(&public_key1, &pt1);
-        let _ = cc2.encrypt(&public_key2, &pt2);
+        let _ = cc1.encrypt(&public_key1, &pt1).unwrap();
+        let _ = cc2.encrypt(&public_key2, &pt2).unwrap();
 
         // Test cross-context operations (may cause issues but shouldn't segfault)
         let cross_encrypt_result = std::panic::catch_unwind(|| {
-            cc1.encrypt(&public_key2, &pt1) // Using cc1 with key from cc2
+            cc1.encrypt(&public_key2, &pt1).unwrap() // Using cc1 with key from cc2
         });
 
         let cross_plaintext_result = std::panic::catch_unwind(|| {
-            cc2.encrypt(&public_key1, &pt2) // Using cc2 with key from cc1
+            cc2.encrypt(&public_key1, &pt2).unwrap() // Using cc2 with key from cc1
         });
 
         // These operations may fail but shouldn't cause segfaults
@@ -512,8 +522,8 @@ mod tests {
                         let cc = create_test_crypto_context();
 
                         // Generate keys
-                        let key_pair1 = cc.key_gen();
-                        let key_pair2 = cc.key_gen();
+                        let key_pair1 = cc.key_gen().unwrap();
+                        let key_pair2 = cc.key_gen().unwrap();
 
                         let public_key1 = key_pair1.public_key();
                         let public_key2 = key_pair2.public_key();
@@ -524,14 +534,14 @@ mod tests {
                         let data2 = vec![(thread_id * 10) as i64, (iteration * 10) as i64];
                         let data3 = vec![thread_id as i64 + iteration as i64];
 
-                        let pt1 = cc.make_packed_plaintext(&data1);
-                        let pt2 = cc.make_packed_plaintext(&data2);
-                        let pt3 = cc.make_packed_plaintext(&data3);
+                        let pt1 = cc.make_packed_plaintext(&data1).unwrap();
+                        let pt2 = cc.make_packed_plaintext(&data2).unwrap();
+                        let pt3 = cc.make_packed_plaintext(&data3).unwrap();
 
                         // Encrypt with different keys
-                        let ct1 = cc.encrypt(&public_key1, &pt1);
-                        let ct2 = cc.encrypt(&public_key2, &pt2);
-                        let ct3 = cc.encrypt(&public_key1, &pt3);
+                        let ct1 = cc.encrypt(&public_key1, &pt1).unwrap();
+                        let ct2 = cc.encrypt(&public_key2, &pt2).unwrap();
+                        let ct3 = cc.encrypt(&public_key1, &pt3).unwrap();
 
                         // Test basic validity
                         assert!(ct1.0.as_ref().is_some());
@@ -539,24 +549,25 @@ mod tests {
                         assert!(ct3.0.as_ref().is_some());
 
                         // Test multiparty operations (may fail but shouldn't segfault)
-                        let _mp_key_result =
-                            std::panic::catch_unwind(|| cc.multiparty_key_gen(&public_key1));
+                        let _mp_key_result = std::panic::catch_unwind(|| {
+                            cc.multiparty_key_gen(&public_key1).unwrap()
+                        });
 
                         let _mp_decrypt_lead_result = std::panic::catch_unwind(|| {
-                            cc.multiparty_decrypt_lead(&ct1, &secret_key1)
+                            cc.multiparty_decrypt_lead(&ct1, &secret_key1).unwrap()
                         });
 
                         let _mp_decrypt_main_result = std::panic::catch_unwind(|| {
-                            cc.multiparty_decrypt_main(&ct2, &secret_key1)
+                            cc.multiparty_decrypt_main(&ct2, &secret_key1).unwrap()
                         });
 
                         // Create another context to test cross-context behavior
                         let cc2 = create_test_crypto_context();
-                        let key_pair3 = cc2.key_gen();
+                        let key_pair3 = cc2.key_gen().unwrap();
                         let public_key3 = key_pair3.public_key();
 
-                        let pt4 = cc2.make_packed_plaintext(&data1);
-                        let ct4 = cc2.encrypt(&public_key3, &pt4);
+                        let pt4 = cc2.make_packed_plaintext(&data1).unwrap();
+                        let ct4 = cc2.encrypt(&public_key3, &pt4).unwrap();
 
                         assert!(ct4.0.as_ref().is_some());
                     });
@@ -632,15 +643,15 @@ mod tests {
                         let cc = create_test_crypto_context();
 
                         // Generate multiple key pairs per context
-                        let kp1 = cc.key_gen();
-                        let kp2 = cc.key_gen();
+                        let kp1 = cc.key_gen().unwrap();
+                        let kp2 = cc.key_gen().unwrap();
 
                         // Create plaintexts and ciphertexts
                         let data = vec![i as i64, thread_id as i64];
-                        let pt = cc.make_packed_plaintext(&data);
+                        let pt = cc.make_packed_plaintext(&data).unwrap();
 
                         let pk1 = kp1.public_key();
-                        let ct = cc.encrypt(&pk1, &pt);
+                        let ct = cc.encrypt(&pk1, &pt).unwrap();
 
                         (cc, vec![kp1, kp2], vec![pt], vec![ct])
                     });
@@ -654,9 +665,10 @@ mod tests {
                             if let Some((latest_cc, latest_kps, _, _)) = contexts_and_data.last() {
                                 if !latest_kps.is_empty() {
                                     let test_data = vec![999];
-                                    let test_pt = latest_cc.make_packed_plaintext(&test_data);
+                                    let test_pt =
+                                        latest_cc.make_packed_plaintext(&test_data).unwrap();
                                     let test_pk = latest_kps[0].public_key();
-                                    let _test_ct = latest_cc.encrypt(&test_pk, &test_pt);
+                                    let _test_ct = latest_cc.encrypt(&test_pk, &test_pt).unwrap();
                                 }
                             }
                         }
@@ -682,9 +694,9 @@ mod tests {
                         // Test additional operations
                         if !key_pairs.is_empty() && !plaintexts.is_empty() {
                             let new_data = vec![i as i64 * 10];
-                            let new_pt = cc.make_packed_plaintext(&new_data);
+                            let new_pt = cc.make_packed_plaintext(&new_data).unwrap();
                             let pk = key_pairs[0].public_key();
-                            let _new_ct = cc.encrypt(&pk, &new_pt);
+                            let _new_ct = cc.encrypt(&pk, &new_pt).unwrap();
                         }
 
                         // Verify all stored objects are still valid
@@ -763,23 +775,23 @@ mod tests {
 
                             // Alternate between contexts
                             let (cc, kp) = if i % 2 == 0 {
-                                (&cc1, cc1.key_gen())
+                                (&cc1, cc1.key_gen().unwrap())
                             } else {
-                                (&cc2, cc2.key_gen())
+                                (&cc2, cc2.key_gen().unwrap())
                             };
 
                             let pk = kp.public_key();
                             let _sk = kp.secret_key();
 
                             // Create various plaintexts
-                            let pt1 = cc.make_packed_plaintext(&[value]);
-                            let pt2 = cc.make_packed_plaintext(&[value, value + 1]);
-                            let pt3 = cc.make_packed_plaintext(&[0, value, value * 2]);
+                            let pt1 = cc.make_packed_plaintext(&[value]).unwrap();
+                            let pt2 = cc.make_packed_plaintext(&[value, value + 1]).unwrap();
+                            let pt3 = cc.make_packed_plaintext(&[0, value, value * 2]).unwrap();
 
                             // Encrypt all plaintexts
-                            let ct1 = cc.encrypt(&pk, &pt1);
-                            let ct2 = cc.encrypt(&pk, &pt2);
-                            let ct3 = cc.encrypt(&pk, &pt3);
+                            let ct1 = cc.encrypt(&pk, &pt1).unwrap();
+                            let ct2 = cc.encrypt(&pk, &pt2).unwrap();
+                            let ct3 = cc.encrypt(&pk, &pt3).unwrap();
 
                             key_pairs.push(kp);
                             plaintexts.extend(vec![pt1, pt2, pt3]);
@@ -799,21 +811,22 @@ mod tests {
                             let cc = if i % 2 == 0 { &cc1 } else { &cc2 };
 
                             if i < plaintexts.len() {
-                                let _cross_encrypt =
-                                    std::panic::catch_unwind(|| cc.encrypt(&pk, &plaintexts[i]));
+                                let _cross_encrypt = std::panic::catch_unwind(|| {
+                                    cc.encrypt(&pk, &plaintexts[i]).unwrap()
+                                });
                             }
 
                             // Multiparty operations (may fail but shouldn't segfault)
                             let _mp_key_gen =
-                                std::panic::catch_unwind(|| cc.multiparty_key_gen(&pk));
+                                std::panic::catch_unwind(|| cc.multiparty_key_gen(&pk).unwrap());
 
                             if i < ciphertexts.len() {
                                 let _mp_decrypt_lead = std::panic::catch_unwind(|| {
-                                    cc.multiparty_decrypt_lead(&ciphertexts[i], &sk)
+                                    cc.multiparty_decrypt_lead(&ciphertexts[i], &sk).unwrap()
                                 });
 
                                 let _mp_decrypt_main = std::panic::catch_unwind(|| {
-                                    cc.multiparty_decrypt_main(&ciphertexts[i], &sk)
+                                    cc.multiparty_decrypt_main(&ciphertexts[i], &sk).unwrap()
                                 });
                             }
                         }
@@ -892,11 +905,11 @@ mod tests {
             vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10], // Many values
         ];
 
-        let key_pair = cc.key_gen();
+        let key_pair = cc.key_gen().unwrap();
         let public_key = key_pair.public_key();
 
         for (i, data) in edge_cases.iter().enumerate() {
-            let pt = cc.make_packed_plaintext(data);
+            let pt = cc.make_packed_plaintext(data).unwrap();
             assert!(
                 pt.0.as_ref().is_some(),
                 "Plaintext creation failed for case {}: {:?}",
@@ -904,7 +917,7 @@ mod tests {
                 data
             );
 
-            let ct = cc.encrypt(&public_key, &pt);
+            let ct = cc.encrypt(&public_key, &pt).unwrap();
             assert!(
                 ct.0.as_ref().is_some(),
                 "Encryption failed for case {}: {:?}",
@@ -914,14 +927,16 @@ mod tests {
         }
 
         // Test enabling features multiple times and in different orders
-        let mut cc2 = CryptoContext::new(&create_test_params());
+        let mut cc2 = CryptoContext::new(&create_test_params()).unwrap();
 
-        cc2.enable_features(&[ffi::PKESchemeFeature::LEVELEDSHE]);
-        cc2.enable_features(&[ffi::PKESchemeFeature::PKE]);
-        cc2.enable_features(&[ffi::PKESchemeFeature::KEYSWITCH]);
-        cc2.enable_features(&[ffi::PKESchemeFeature::PKE]); // Duplicate
+        cc2.enable_features(&[ffi::PKESchemeFeature::LEVELEDSHE])
+            .unwrap();
+        cc2.enable_features(&[ffi::PKESchemeFeature::PKE]).unwrap();
+        cc2.enable_features(&[ffi::PKESchemeFeature::KEYSWITCH])
+            .unwrap();
+        cc2.enable_features(&[ffi::PKESchemeFeature::PKE]).unwrap(); // Duplicate
 
-        let kp2 = cc2.key_gen();
+        let kp2 = cc2.key_gen().unwrap();
         assert!(kp2.0.as_ref().is_some());
     }
 }

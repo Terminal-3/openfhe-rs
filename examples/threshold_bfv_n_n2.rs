@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     params.set_multiplicative_depth(0);
     // params.set_multiparty_mode(ffi::MultipartyMode::NOISE_FLOODING_MULTIPARTY);
 
-    let mut cc = CryptoContext::new(&params);
+    let mut cc = CryptoContext::new(&params)?;
 
     println!("cc: {:?}", cc);
 
@@ -22,15 +22,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ffi::PKESchemeFeature::PKE,
         ffi::PKESchemeFeature::KEYSWITCH,
         ffi::PKESchemeFeature::MULTIPARTY,
-    ]);
+    ])?;
 
     // 2) Party A: local key-pair
-    let kp1 = cc.key_gen();
+    let kp1 = cc.key_gen()?;
     let sk1 = kp1.secret_key();
     let pk1 = kp1.public_key();
 
     // 3) Party B: join using A's public key
-    let kp2 = cc.multiparty_key_gen(&pk1);
+    let kp2 = cc.multiparty_key_gen(&pk1)?;
     let sk2 = kp2.secret_key();
     let pk2 = kp2.public_key();
 
@@ -43,10 +43,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("data → {:?}", data);
 
     // 4) Create plaintext using the wrapper
-    let pt = cc.make_packed_plaintext(&data);
+    let pt = cc.make_packed_plaintext(&data)?;
 
     // 5) Encrypt under the *joint* public key
-    let ct = cc.encrypt(&pk2, &pt);
+    let ct = cc.encrypt(&pk2, &pt)?;
 
     // Test serialization/deserialization using the wrapper's Serialize/Deserialize traits
     let serialized_bytes = bincode::serialize(&ct)?;
