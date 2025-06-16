@@ -1103,6 +1103,11 @@ pub mod ffi {
         ) -> UniquePtr<CryptoContextDCRTPoly>;
         fn DCRTPolyGenNullCryptoContext() -> UniquePtr<CryptoContextDCRTPoly>;
     }
+    // DecryptResult
+    unsafe extern "C++" {
+        fn DecryptResultIsValid(self: &DecryptResult) -> bool;
+        fn DecryptResultMessageLength(self: &DecryptResult) -> u32;
+    }
 
     // DCRTPolyParams
     unsafe extern "C++" {

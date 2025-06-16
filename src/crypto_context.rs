@@ -91,19 +91,46 @@ impl CryptoContext {
         Ciphertext(self.0.as_ref().unwrap().EncryptByPublicKey(&pk.0, &pt.0))
     }
 
+    /// Decrypts a ciphertext using a secret key.
+    /// Returns a Result containing either the decrypted plaintext or an error message.
+    pub fn decrypt(&mut self, sk: &SecretKey, ct: &Ciphertext) -> Result<Plaintext, String> {
+        let mut pt = ffi::GenNullPlainText();
+        let cc = self
+            .0
+            .as_mut()
+            .ok_or_else(|| "CryptoContext is null".to_string())?;
+        let result = cc.DecryptByPrivateKeyAndCiphertext(&sk.0, &ct.0, pt.pin_mut());
+
+        // Check if decryption was successful
+        if !result
+            .as_ref()
+            .ok_or_else(|| "DecryptResult is null".to_string())?
+            .DecryptResultIsValid()
+        {
+            return Err("Decryption failed - invalid result".to_string());
+        }
+
+        Ok(Plaintext(pt))
+    }
+
     /// Performs the lead role in multiparty decryption.
     pub fn multiparty_decrypt_lead(
         &self,
         ciphertext: &Ciphertext,
         sk: &SecretKey,
-    ) -> DecryptionShareVec {
-        let enc_vec = ffi::vector_of_ciphertexts_single(ciphertext.0.as_ref().unwrap().GetRef());
-        DecryptionShareVec(
-            self.0
-                .as_ref()
-                .unwrap()
-                .MultipartyDecryptLead(&enc_vec, &sk.0),
-        )
+    ) -> Result<DecryptionShareVec, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "CryptoContext is null".to_string())?;
+        let ct_ref = ciphertext
+            .0
+            .as_ref()
+            .ok_or_else(|| "Ciphertext is null".to_string())?;
+        let enc_vec = ffi::vector_of_ciphertexts_single(ct_ref.GetRef());
+        Ok(DecryptionShareVec(
+            cc.MultipartyDecryptLead(&enc_vec, &sk.0),
+        ))
     }
 
     /// Performs the main (non-lead) role in multiparty decryption.
@@ -111,24 +138,43 @@ impl CryptoContext {
         &self,
         ciphertext: &Ciphertext,
         sk: &SecretKey,
-    ) -> DecryptionShareVec {
-        let enc_vec = ffi::vector_of_ciphertexts_single(ciphertext.0.as_ref().unwrap().GetRef());
-        DecryptionShareVec(
-            self.0
-                .as_ref()
-                .unwrap()
-                .MultipartyDecryptMain(&enc_vec, &sk.0),
-        )
+    ) -> Result<DecryptionShareVec, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "CryptoContext is null".to_string())?;
+        let ct_ref = ciphertext
+            .0
+            .as_ref()
+            .ok_or_else(|| "Ciphertext is null".to_string())?;
+        let enc_vec = ffi::vector_of_ciphertexts_single(ct_ref.GetRef());
+        Ok(DecryptionShareVec(
+            cc.MultipartyDecryptMain(&enc_vec, &sk.0),
+        ))
     }
 
     /// Fuses partial decryption shares to recover the plaintext.
-    pub fn multiparty_decrypt_fusion(&mut self, shares: &DecryptionShareVec) -> Plaintext {
+    pub fn multiparty_decrypt_fusion(
+        &mut self,
+        shares: &DecryptionShareVec,
+    ) -> Result<Plaintext, String> {
         let mut pt = ffi::GenNullPlainText();
-        self.0
+        let cc = self
+            .0
             .as_mut()
-            .unwrap()
-            .MultipartyDecryptFusion(&shares.0, pt.pin_mut());
-        Plaintext(pt)
+            .ok_or_else(|| "CryptoContext is null".to_string())?;
+        let result = cc.MultipartyDecryptFusion(&shares.0, pt.pin_mut());
+
+        // Check if fusion was successful
+        if !result
+            .as_ref()
+            .ok_or_else(|| "DecryptResult is null".to_string())?
+            .DecryptResultIsValid()
+        {
+            return Err("Multiparty decryption fusion failed - invalid result".to_string());
+        }
+
+        Ok(Plaintext(pt))
     }
 }
 
@@ -341,11 +387,8 @@ mod tests {
         let ciphertext = cc.encrypt(&public_key, &plaintext);
 
         // Test multiparty decrypt operations (these may fail due to missing FFI functions)
-        let lead_result =
-            std::panic::catch_unwind(|| cc.multiparty_decrypt_lead(&ciphertext, &secret_key));
-
-        let main_result =
-            std::panic::catch_unwind(|| cc.multiparty_decrypt_main(&ciphertext, &secret_key));
+        let lead_result = cc.multiparty_decrypt_lead(&ciphertext, &secret_key);
+        let main_result = cc.multiparty_decrypt_main(&ciphertext, &secret_key);
 
         // Handle potential failures gracefully
         match lead_result {
@@ -354,24 +397,18 @@ mod tests {
                 println!("Multiparty decrypt lead succeeded");
 
                 // Try fusion if lead succeeded
-                let fusion_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    cc.multiparty_decrypt_fusion(&shares)
-                }));
-
-                match fusion_result {
+                match cc.multiparty_decrypt_fusion(&shares) {
                     Ok(recovered_pt) => {
                         assert!(recovered_pt.0.as_ref().is_some());
                         println!("Multiparty decrypt fusion succeeded");
                     }
-                    Err(_) => {
-                        println!(
-                            "Multiparty decrypt fusion failed as expected (missing FFI function)"
-                        );
+                    Err(e) => {
+                        println!("Multiparty decrypt fusion failed: {}", e);
                     }
                 }
             }
-            Err(_) => {
-                println!("Multiparty decrypt lead failed as expected (missing FFI function)");
+            Err(e) => {
+                println!("Multiparty decrypt lead failed: {}", e);
             }
         }
 
@@ -380,8 +417,8 @@ mod tests {
                 assert!(shares.0.as_ref().is_some());
                 println!("Multiparty decrypt main succeeded");
             }
-            Err(_) => {
-                println!("Multiparty decrypt main failed as expected (missing FFI function)");
+            Err(e) => {
+                println!("Multiparty decrypt main failed: {}", e);
             }
         }
     }

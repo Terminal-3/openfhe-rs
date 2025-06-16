@@ -62,12 +62,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Are ciphertexts equal: {:?}", are_equal);
 
     // 6) Perform multiparty decryption using wrapper methods
-    let share1 = cc.multiparty_decrypt_lead(&ct_deserialized, &sk1);
+    let share1 = cc.multiparty_decrypt_lead(&ct_deserialized, &sk1)?;
     let share1_bytes = bincode::serialize(&share1)?;
     println!("Share1 len → {:?} kB", share1_bytes.len() as f64 / 1024.0);
     let share1_deserialized: DecryptionShareVec = bincode::deserialize(&share1_bytes)?;
 
-    let share2 = cc.multiparty_decrypt_main(&ct_deserialized, &sk2);
+    let share2 = cc.multiparty_decrypt_main(&ct_deserialized, &sk2)?;
     let share2_bytes = bincode::serialize(&share2)?;
     println!("Share2 len → {:?} kB", share2_bytes.len() as f64 / 1024.0);
     let share2_deserialized: DecryptionShareVec = bincode::deserialize(&share2_bytes)?;
@@ -77,7 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     combined_shares.extend(&share2_deserialized);
 
     // 8) Perform fusion to recover plaintext
-    let mut recovered_pt = cc.multiparty_decrypt_fusion(&combined_shares);
+    let mut recovered_pt = cc.multiparty_decrypt_fusion(&combined_shares)?;
 
     println!("Decrypted len → {:?}", recovered_pt.len());
     println!("Decrypted → {}", recovered_pt.get_string());

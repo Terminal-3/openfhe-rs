@@ -14,6 +14,13 @@ public:
     DecryptResult(DecryptResult&&) = delete;
     DecryptResult& operator=(const DecryptResult&) = delete;
     DecryptResult& operator=(DecryptResult&&) = delete;
+
+    // Check if decryption was successful
+    bool DecryptResultIsValid() const noexcept { return m_decryptResult.isValid; }
+
+    // Get the length of the decrypted message
+    uint32_t DecryptResultMessageLength() const noexcept { return m_decryptResult.messageLength; }
+
 };
 
 } // openfhe
