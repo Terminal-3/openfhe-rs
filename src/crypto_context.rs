@@ -99,11 +99,11 @@ impl CryptoContext {
 
     /// Decrypts a ciphertext using a secret key.
     /// Returns a Result containing either the decrypted plaintext or an error message.
-    pub fn decrypt(&mut self, sk: &SecretKey, ct: &Ciphertext) -> Result<Plaintext, String> {
+    pub fn decrypt(&self, sk: &SecretKey, ct: &Ciphertext) -> Result<Plaintext, String> {
         let mut pt = ffi::GenNullPlainText();
         let cc = self
             .0
-            .as_mut()
+            .as_ref()
             .ok_or_else(|| "CryptoContext is null".to_string())?;
         let result = cc.DecryptByPrivateKeyAndCiphertext(&sk.0, &ct.0, pt.pin_mut());
 
