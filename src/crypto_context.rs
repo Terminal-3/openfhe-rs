@@ -57,6 +57,108 @@ impl CryptoContext {
         Ok(())
     }
 
+    pub fn get_modulus(&self) -> Result<u64, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(cc.GetModulus())
+    }
+
+    // fn GetCryptoParameters(
+    //     self: &CryptoContextDCRTPoly,
+    // ) -> UniquePtr<CryptoParametersBaseDCRTPoly>;
+    // fn GetCyclotomicOrder(self: &CryptoContextDCRTPoly) -> u32;
+    // fn GetElementParams(self: &CryptoContextDCRTPoly) -> UniquePtr<DCRTPolyParams>;
+    // fn GetEncodingParams(self: &CryptoContextDCRTPoly) -> UniquePtr<EncodingParams>;
+    // fn GetKeyGenLevel(self: &CryptoContextDCRTPoly) -> usize;
+    // fn GetModulus(self: &CryptoContextDCRTPoly) -> u64;
+    // fn GetRingDimension(self: &CryptoContextDCRTPoly) -> u32;
+    // fn GetRootOfUnity(self: &CryptoContextDCRTPoly) -> u64;
+    // fn GetScheme(self: &CryptoContextDCRTPoly) -> UniquePtr<SchemeBaseDCRTPoly>;
+    // fn GetSchemeId(self: &CryptoContextDCRTPoly) -> SCHEME;
+    // fn GetSwkFC(self: &CryptoContextDCRTPoly) -> UniquePtr<CiphertextDCRTPoly>;
+
+    pub fn get_root_of_unity(&self) -> Result<u64, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(cc.GetRootOfUnity())
+    }
+
+    pub fn get_ring_dimension(&self) -> Result<u32, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(cc.GetRingDimension())
+    }
+
+    pub fn get_scheme(&self) -> Result<ffi::SCHEME, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(cc.GetSchemeId())
+    }
+
+    pub fn get_scheme_id(&self) -> Result<ffi::SCHEME, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(cc.GetSchemeId())
+    }
+
+    pub fn get_swk_fc(&self) -> Result<Ciphertext, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(Ciphertext(cc.GetSwkFC()))
+    }
+
+    pub fn get_key_gen_level(&self) -> Result<usize, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(cc.GetKeyGenLevel())
+    }
+
+    // pub fn get_encoding_params(&self) -> Result<ffi::EncodingParams, String> {
+    //     let cc = self
+    //         .0
+    //         .as_ref()
+    //         .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+    //     Ok(cc.GetEncodingParams())
+    // }
+
+    // pub fn get_element_params(&self) -> Result<ffi::DCRTPolyParams, String> {
+    //     let cc = self
+    //         .0
+    //         .as_ref()
+    //         .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+    //     Ok(cc.GetElementParams())
+    // }
+
+    // pub fn get_crypto_parameters(&self) -> Result<ffi::CryptoParametersBaseDCRTPoly, String> {
+    //     let cc = self
+    //         .0
+    //         .as_ref()
+    //         .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+    //     Ok(cc.GetCryptoParameters())
+    // }
+
+    pub fn get_cyclotomic_order(&self) -> Result<u32, String> {
+        let cc = self
+            .0
+            .as_ref()
+            .ok_or_else(|| "Failed to get reference to crypto context".to_string())?;
+        Ok(cc.GetCyclotomicOrder())
+    }
+
     /// Generates a new key pair.
     pub fn key_gen(&self) -> Result<KeyPair, String> {
         let cc = self
