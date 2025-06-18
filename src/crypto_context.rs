@@ -263,13 +263,13 @@ impl CryptoContext {
 
     /// Fuses partial decryption shares to recover the plaintext.
     pub fn multiparty_decrypt_fusion(
-        &mut self,
+        &self,
         shares: &DecryptionShareVec,
     ) -> Result<Plaintext, String> {
         let mut pt = ffi::GenNullPlainText();
         let cc = self
             .0
-            .as_mut()
+            .as_ref()
             .ok_or_else(|| "CryptoContext is null".to_string())?;
         let result = cc.MultipartyDecryptFusion(&shares.0, pt.pin_mut());
 
@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn test_crypto_context_multiparty_decrypt_operations() {
-        let mut cc = create_test_crypto_context();
+        let cc = create_test_crypto_context();
         let key_pair = cc.key_gen().unwrap();
         let public_key = key_pair.public_key();
         let secret_key = key_pair.secret_key();
