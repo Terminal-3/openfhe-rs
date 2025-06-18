@@ -301,7 +301,7 @@ mod tests {
     /// Helper function to create a crypto context with standard features enabled
     fn create_test_crypto_context() -> CryptoContext {
         let params = create_test_params();
-        let mut cc = CryptoContext::new(&params).unwrap();
+        let cc = CryptoContext::new(&params).unwrap();
         cc
     }
 

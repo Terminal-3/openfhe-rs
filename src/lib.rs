@@ -1655,6 +1655,11 @@ pub mod ffi {
             decryptionShareVec: &VectorOfCiphertexts,
             out_bytes: Pin<&mut CxxVector<u8>>,
         ) -> bool;
+
+        // clone
+        fn DCRTPolyCloneDecryptionShareVec(
+            decryptionShareVec: &VectorOfCiphertexts,
+        ) -> UniquePtr<VectorOfCiphertexts>;
     }
 
     // Trapdoor

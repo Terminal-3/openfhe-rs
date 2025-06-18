@@ -1,4 +1,5 @@
 #include "SequenceContainers.h"
+#include "openfhe/pke/ciphertext.h"
 
 namespace openfhe
 {
@@ -83,6 +84,18 @@ void vector_of_ciphertexts_extend(VectorOfCiphertexts& dest, const VectorOfCiphe
 {
     dest.GetRef().insert(dest.GetRef().end(), src.GetRef().begin(), src.GetRef().end());
 }
+
+// clone
+std::unique_ptr<VectorOfCiphertexts> DCRTPolyCloneDecryptionShareVec(const VectorOfCiphertexts& decryptionShareVec)
+{
+    std::vector<std::shared_ptr<CiphertextImpl>> cloned_ciphertexts;
+    for (const auto& ciphertext : decryptionShareVec.GetRef()) {
+        cloned_ciphertexts.push_back(ciphertext->Clone());
+    }
+    return std::make_unique<VectorOfCiphertexts>(std::move(cloned_ciphertexts));
+}
+
+
 
 
 } // openfhe

@@ -109,6 +109,29 @@ impl Default for DecryptionShareVec {
     }
 }
 
+impl std::fmt::Debug for DecryptionShareVec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut out_bytes = CxxVector::<u8>::new();
+        ffi::DCRTPolySerializeDecryptionShareVecToBytes(
+            self.0.as_ref().unwrap(),
+            out_bytes.pin_mut(),
+        );
+        f.debug_struct("DecryptionShareVec")
+            .field("len_bytes", &out_bytes.len())
+            .field("bytes", &out_bytes.as_slice())
+            .finish()?;
+        Ok(())
+    }
+}
+
+impl Clone for DecryptionShareVec {
+    fn clone(&self) -> Self {
+        DecryptionShareVec(ffi::DCRTPolyCloneDecryptionShareVec(
+            self.0.as_ref().unwrap(),
+        ))
+    }
+}
+
 impl Serialize for DecryptionShareVec {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

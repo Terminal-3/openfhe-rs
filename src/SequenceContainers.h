@@ -89,5 +89,10 @@ std::unique_ptr<VectorOfCiphertexts> vector_of_ciphertexts_empty();
 
 /// extend a vector of ciphertexts with another vector of ciphertexts
 void vector_of_ciphertexts_extend(VectorOfCiphertexts& dest, const VectorOfCiphertexts& src);
+
+
+/// clone a vector of ciphertexts
+std::unique_ptr<VectorOfCiphertexts> DCRTPolyCloneDecryptionShareVec(const VectorOfCiphertexts& decryptionShareVec);
+
 }
 
