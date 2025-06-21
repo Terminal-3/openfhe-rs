@@ -89,6 +89,11 @@ class PublicKeyDCRTPoly;
 [[nodiscard]] bool DCRTPolySerializeDecryptionShareVecToBytes(
     const VectorOfCiphertexts& decryptionShareVec, std::vector<uint8_t>& out_bytes);
 
+// Plaintext
+[[nodiscard]] bool DCRTPolyDeserializePlaintextFromBytes(const std::vector<uint8_t>& bytes,
+    Plaintext& plaintext);
+[[nodiscard]] bool DCRTPolySerializePlaintextToBytes(const Plaintext& plaintext,
+    std::vector<uint8_t>& out_bytes);
 
 
 } // openfhe

@@ -59,5 +59,6 @@ public:
 
 // Generator functions
 [[nodiscard]] std::unique_ptr<Plaintext> GenNullPlainText();
+[[nodiscard]] bool ArePlaintextsEqual(const Plaintext& a, const Plaintext& b);
 
 } // openfhe

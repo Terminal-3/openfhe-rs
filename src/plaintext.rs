@@ -1,8 +1,84 @@
 use crate::ffi;
-use cxx::UniquePtr;
+use cxx::{CxxVector, UniquePtr};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// A wrapper for a plaintext object.
 pub struct Plaintext(pub(crate) UniquePtr<ffi::Plaintext>);
+impl Clone for Plaintext {
+    /// Clones the plaintext through serialization as there is no clone function in the C++ API.
+    fn clone(&self) -> Self {
+        // clone through serialization
+        let mut out_bytes = CxxVector::<u8>::new();
+        ffi::DCRTPolySerializePlaintextToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
+        let mut new_plaintext = ffi::GenNullPlainText();
+        ffi::DCRTPolyDeserializePlaintextFromBytes(&out_bytes, new_plaintext.pin_mut());
+        Plaintext(new_plaintext)
+    }
+}
+
+impl std::fmt::Debug for Plaintext {
+    /// Formats the ciphertext by showing its serialized size, avoiding printing large objects.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut out_bytes = CxxVector::<u8>::new();
+        ffi::DCRTPolySerializePlaintextToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
+        f.debug_struct("Plaintext")
+            .field("len_bytes", &out_bytes.len())
+            .finish()
+    }
+}
+
+impl PartialEq for Plaintext {
+    /// Checks for equality by calling the underlying C++ comparison function.
+    fn eq(&self, other: &Self) -> bool {
+        ffi::ArePlaintextsEqual(&self.0, &other.0)
+    }
+}
+impl Eq for Plaintext {}
+
+impl Serialize for Plaintext {
+    /// Serializes the ciphertext into a byte vector.
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut out_bytes = CxxVector::<u8>::new();
+        ffi::DCRTPolySerializePlaintextToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
+        serializer.serialize_bytes(out_bytes.as_slice())
+    }
+}
+
+impl<'de> Deserialize<'de> for Plaintext {
+    /// Deserializes a ciphertext from a byte vector.
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PlaintextVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for PlaintextVisitor {
+            type Value = Plaintext;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a byte array representing a serialized Ciphertext")
+            }
+
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let mut bytes_vec = CxxVector::<u8>::new();
+                for &byte in v {
+                    bytes_vec.pin_mut().push(byte);
+                }
+                let mut pt = ffi::GenNullPlainText();
+                ffi::DCRTPolyDeserializePlaintextFromBytes(&bytes_vec, pt.pin_mut());
+                Ok(Plaintext(pt))
+            }
+        }
+
+        deserializer.deserialize_bytes(PlaintextVisitor)
+    }
+}
 
 impl Plaintext {
     /// Retrieves the packed integer values from the plaintext.
@@ -37,15 +113,6 @@ impl Plaintext {
     /// This is necessary before accessing vector data if the length is not implicitly known.
     pub fn set_length(&mut self, len: usize) {
         self.0.pin_mut().SetLength(len);
-    }
-}
-
-impl std::fmt::Debug for Plaintext {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Plaintext")
-            .field("data", &self.get_string())
-            .field("len", &self.len())
-            .finish()
     }
 }
 
@@ -238,7 +305,6 @@ mod tests {
 
         // Test that debug formatting works and contains expected elements
         assert!(debug_string.contains("Plaintext"));
-        assert!(debug_string.contains("data"));
         assert!(debug_string.contains("len"));
         assert!(!debug_string.is_empty());
     }

@@ -1,11 +1,16 @@
 #include "Plaintext.h"
+#include "EqualityUtils.h"
 
 #include "openfhe/pke/encoding/plaintext.h"
 
 #include "openfhe/src/lib.rs.h"
+#include <memory>
+#include <mutex>
 
 namespace openfhe
 {
+
+std::mutex plaintext_clone_mutex;
 
 Plaintext::Plaintext(std::shared_ptr<PlaintextImpl>&& plaintext) noexcept
     : m_plaintext(std::move(plaintext))
@@ -141,5 +146,12 @@ std::unique_ptr<Plaintext> GenNullPlainText()
 {
     return std::make_unique<Plaintext>();
 }
+
+// Equality function
+bool ArePlaintextsEqual(const Plaintext& a, const Plaintext& b)
+{
+    return AreObjectsEqual(a, b);
+}
+
 
 } // openfhe

@@ -6,6 +6,7 @@
 #include "CryptoContext.h"
 #include "PrivateKey.h"
 #include "PublicKey.h"
+#include "Plaintext.h"
 
 #include <sstream>
 
@@ -381,6 +382,35 @@ bool DCRTPolySerializeDecryptionShareVecToBytes(const VectorOfCiphertexts& decry
         return false; // Failure
     }
 }
+
+// Plaintext
+bool DCRTPolyDeserializePlaintextFromBytes(const std::vector<uint8_t>& bytes,
+    Plaintext& plaintext)
+{
+    try {
+        std::string byte_string(bytes.begin(), bytes.end());
+        std::stringstream stream(byte_string);
+        lbcrypto::Serial::Deserialize(plaintext.GetRef(), stream, lbcrypto::SerType::SERBINARY());
+        return true; // Success
+    } catch (const std::exception& e) {
+        return false; // Failure
+    }
+}
+
+bool DCRTPolySerializePlaintextToBytes(const Plaintext& plaintext,
+    std::vector<uint8_t>& out_bytes)
+{
+    std::ostringstream stream;
+    try {
+        lbcrypto::Serial::Serialize(plaintext.GetRef(), stream, lbcrypto::SerType::SERBINARY());
+        std::string str = stream.str();
+        out_bytes.assign(str.begin(), str.end());
+        return true;
+    } catch (const std::exception& e) {
+        return false; // Failure
+    }
+}
+
 
 
 
