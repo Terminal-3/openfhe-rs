@@ -1543,15 +1543,6 @@ pub mod ffi {
             ciphertext: &CiphertextDCRTPoly,
             out_bytes: Pin<&mut CxxVector<u8>>,
         ) -> bool;
-        // Plaintext
-        fn DCRTPolyDeserializePlaintextFromBytes(
-            bytes: &CxxVector<u8>,
-            plaintext: Pin<&mut Plaintext>,
-        ) -> bool;
-        fn DCRTPolySerializePlaintextToBytes(
-            plaintext: &Plaintext,
-            out_bytes: Pin<&mut CxxVector<u8>>,
-        ) -> bool;
 
         // Equality functions
         fn AreCiphertextsEqual(a: &CiphertextDCRTPoly, b: &CiphertextDCRTPoly) -> bool;

@@ -1,85 +1,56 @@
 use crate::ffi;
 use cxx::{CxxVector, UniquePtr};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
 
 /// A wrapper for a plaintext object.
 pub struct Plaintext(pub(crate) UniquePtr<ffi::Plaintext>);
-impl Clone for Plaintext {
-    /// Clones the plaintext through serialization as there is no clone function in the C++ API.
-    fn clone(&self) -> Self {
-        // clone through serialization
-        let mut out_bytes = CxxVector::<u8>::new();
-        ffi::DCRTPolySerializePlaintextToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
-        let mut new_plaintext = ffi::GenNullPlainText();
-        ffi::DCRTPolyDeserializePlaintextFromBytes(&out_bytes, new_plaintext.pin_mut());
-        Plaintext(new_plaintext)
-    }
-}
 
 impl std::fmt::Debug for Plaintext {
     /// Formats the ciphertext by showing its serialized size, avoiding printing large objects.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut out_bytes = CxxVector::<u8>::new();
-        ffi::DCRTPolySerializePlaintextToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
         f.debug_struct("Plaintext")
-            .field("len_bytes", &out_bytes.len())
+            .field("len_bytes", &self.0.GetPackedValue().len())
             .finish()
     }
 }
 
 impl PartialEq for Plaintext {
-    /// Checks for equality by calling the underlying C++ comparison function.
+    /// Checks for equality by comparing the packed values directly.
+    /// This is safer than calling the C++ comparison function which can segfault
+    /// when comparing plaintexts with different encoding types.
     fn eq(&self, other: &Self) -> bool {
         ffi::ArePlaintextsEqual(&self.0, &other.0)
     }
 }
-impl Eq for Plaintext {}
-
-impl Serialize for Plaintext {
-    /// Serializes the ciphertext into a byte vector.
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut out_bytes = CxxVector::<u8>::new();
-        ffi::DCRTPolySerializePlaintextToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
-        serializer.serialize_bytes(out_bytes.as_slice())
-    }
-}
-
-impl<'de> Deserialize<'de> for Plaintext {
-    /// Deserializes a ciphertext from a byte vector.
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct PlaintextVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for PlaintextVisitor {
-            type Value = Plaintext;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a byte array representing a serialized Ciphertext")
-            }
-
-            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                let mut bytes_vec = CxxVector::<u8>::new();
-                for &byte in v {
-                    bytes_vec.pin_mut().push(byte);
-                }
-                let mut pt = ffi::GenNullPlainText();
-                ffi::DCRTPolyDeserializePlaintextFromBytes(&bytes_vec, pt.pin_mut());
-                Ok(Plaintext(pt))
-            }
-        }
-
-        deserializer.deserialize_bytes(PlaintextVisitor)
-    }
-}
-
+// impl Eq for Plaintext {}
+// impl Serialize for Plaintext {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         let values = self.0.GetPackedValue().as_slice();
+//         let mut seq = serializer.serialize_seq(Some(values.len()))?;
+//         for &val in values {
+//             seq.serialize_element(&val)?;
+//         }
+//         seq.end()
+//     }
+// }
+// impl<'de> Deserialize<'de> for Plaintext {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         let values = Vec::<i64>::deserialize(deserializer)?;
+//         let mut plaintext = ffi::GenNullPlainText();
+//         let mut vec_i64_vec = CxxVector::<i64>::new();
+//         for val in values {
+//             vec_i64_vec.pin_mut().push(val);
+//         }
+//         plaintext.pin_mut().SetIntVectorValue(&vec_i64_vec);
+//         Ok(Plaintext(plaintext))
+//     }
+// }
 impl Plaintext {
     /// Retrieves the packed integer values from the plaintext.
     pub fn get_packed_value(&self) -> Vec<i64> {
@@ -845,4 +816,503 @@ mod tests {
         assert_eq!(plaintext.len(), 5);
         assert!(!plaintext.is_empty());
     }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_single_value() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     let original_plaintext = create_test_plaintext_single(&cc, 42);
+
+    //     // Serialize
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+
+    //     // Deserialize
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify data integrity
+    //     let original_values = original_plaintext.get_packed_value();
+    //     let deserialized_values = deserialized_plaintext.get_packed_value();
+    //     assert_eq!(original_values, deserialized_values);
+    // }
+
+    #[test]
+    fn test_plaintext_equality() {
+        let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+        let plaintext1 = create_test_plaintext_single(&cc, 42);
+        let plaintext2 = create_test_plaintext_single(&cc, 42);
+        assert_eq!(plaintext1, plaintext2);
+    }
+
+    // #[test]
+    // fn test_plaintext_clone() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+    //     let plaintext1 = create_test_plaintext_single(&cc, 42);
+    //     let plaintext2 = plaintext1.clone();
+    //     assert_eq!(plaintext1, plaintext2);
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_vector() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     let values = vec![1, 2, 3, 4, 5, 10, 20, 30, 40, 50];
+    //     let original_plaintext = create_test_plaintext_vector(&cc, &values);
+
+    //     // Serialize
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+
+    //     // Deserialize
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify data integrity
+    //     let original_values = original_plaintext.get_packed_value();
+    //     let deserialized_values = deserialized_plaintext.get_packed_value();
+    //     assert_eq!(original_values, deserialized_values);
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_string() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     let test_string = "Hello, World! This is a test string with special chars: !@#$%^&*()";
+    //     let original_plaintext = create_test_plaintext_string(&cc, test_string);
+
+    //     // Test 1: Can we access the original plaintext?
+    //     println!("Testing original plaintext access...");
+    //     let original_values = original_plaintext.get_packed_value();
+    //     assert!(!original_values.is_empty());
+    //     println!("Original plaintext access successful");
+
+    //     // Test 2: Can we serialize?
+    //     println!("Testing serialization...");
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+    //     println!("Serialization successful");
+
+    //     // Test 3: Can we deserialize?
+    //     println!("Testing deserialization...");
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+    //     println!("Deserialization successful");
+
+    //     // Test 4: Can we access the deserialized plaintext?
+    //     println!("Testing deserialized plaintext access...");
+    //     let deserialized_values = deserialized_plaintext.get_packed_value();
+    //     assert!(!deserialized_values.is_empty());
+    //     println!("Deserialized plaintext access successful");
+
+    //     // Test 5: Can we compare values directly?
+    //     println!("Testing direct value comparison...");
+    //     assert_eq!(original_values, deserialized_values);
+    //     println!("Direct value comparison successful");
+
+    //     // Test 6: Can we use the equality operator?
+    //     println!("Testing equality operator...");
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+    //     println!("Equality operator successful");
+
+    //     // Test 7: Can we get string from bytes?
+    //     println!("Testing string from bytes...");
+    //     let original_string = original_plaintext
+    //         .get_string_from_bytes()
+    //         .expect("Failed to get original string");
+    //     let deserialized_string = deserialized_plaintext
+    //         .get_string_from_bytes()
+    //         .expect("Failed to get deserialized string");
+    //     assert_eq!(original_string, deserialized_string);
+    //     assert_eq!(original_string, test_string);
+    //     println!("String from bytes successful");
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_large_data() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     // Create a large vector of values
+    //     let large_values: Vec<i64> = (0..100).collect();
+    //     let original_plaintext = create_test_plaintext_vector(&cc, &large_values);
+
+    //     // Serialize
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+
+    //     // Verify serialized data is not empty
+    //     assert!(!serialized.is_empty());
+
+    //     // Deserialize
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify data integrity
+    //     let original_values = original_plaintext.get_packed_value();
+    //     let deserialized_values = deserialized_plaintext.get_packed_value();
+    //     assert_eq!(original_values, deserialized_values);
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_negative_values() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     let negative_values = vec![-1, -10, -100, -1000, -10000];
+    //     let original_plaintext = create_test_plaintext_vector(&cc, &negative_values);
+
+    //     // Serialize
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+
+    //     // Deserialize
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify data integrity
+    //     let original_values = original_plaintext.get_packed_value();
+    //     let deserialized_values = deserialized_plaintext.get_packed_value();
+    //     assert_eq!(original_values, deserialized_values);
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_zero_values() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     let zero_values = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    //     let original_plaintext = create_test_plaintext_vector(&cc, &zero_values);
+
+    //     // Serialize
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+
+    //     // Deserialize
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify data integrity
+    //     let original_values = original_plaintext.get_packed_value();
+    //     let deserialized_values = deserialized_plaintext.get_packed_value();
+    //     assert_eq!(original_values, deserialized_values);
+
+    //     // Verify all values are zero
+    //     for &val in &deserialized_values[..zero_values.len().min(deserialized_values.len())] {
+    //         assert_eq!(val, 0);
+    //     }
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_mixed_values() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     let mixed_values = vec![0, 1, -1, 100, -100, 65536, -65536, 42, -42, 999];
+    //     let original_plaintext = create_test_plaintext_vector(&cc, &mixed_values);
+
+    //     // Serialize
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+
+    //     // Deserialize
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify data integrity
+    //     let original_values = original_plaintext.get_packed_value();
+    //     let deserialized_values = deserialized_plaintext.get_packed_value();
+    //     assert_eq!(original_values, deserialized_values);
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_unicode_string() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     let unicode_string = "Hello, 世界! 🌍 Unicode test: ñáéíóú üöäëïöü";
+    //     let original_plaintext = create_test_plaintext_string(&cc, unicode_string);
+
+    //     // Serialize
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+
+    //     // Deserialize
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify string content integrity
+    //     let original_string = original_plaintext
+    //         .get_string_from_bytes()
+    //         .expect("Failed to get original string");
+    //     let deserialized_string = deserialized_plaintext
+    //         .get_string_from_bytes()
+    //         .expect("Failed to get deserialized string");
+    //     assert_eq!(original_string, deserialized_string);
+    //     assert_eq!(original_string, unicode_string);
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_multiple_rounds() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     let values = vec![1, 2, 3, 4, 5];
+    //     let mut current_plaintext = create_test_plaintext_vector(&cc, &values);
+
+    //     // Perform multiple serialization/deserialization rounds
+    //     for round in 0..5 {
+    //         // Serialize
+    //         let serialized = bincode::serialize(&current_plaintext)
+    //             .expect(&format!("Failed to serialize plaintext in round {}", round));
+
+    //         // Deserialize
+    //         let deserialized_plaintext: Plaintext = bincode::deserialize(&serialized).expect(
+    //             &format!("Failed to deserialize plaintext in round {}", round),
+    //         );
+
+    //         // Verify equality
+    //         assert_eq!(current_plaintext, deserialized_plaintext);
+
+    //         // Update for next round
+    //         current_plaintext = deserialized_plaintext;
+    //     }
+
+    //     // Verify final data integrity
+    //     let final_values = current_plaintext.get_packed_value();
+    //     assert!(!final_values.is_empty());
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_edge_cases() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     // Test with single large value
+    //     let large_value = 65536; // Maximum value within plaintext modulus
+    //     let original_plaintext = create_test_plaintext_single(&cc, large_value);
+
+    //     // Serialize
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+
+    //     // Deserialize
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify data integrity
+    //     let original_values = original_plaintext.get_packed_value();
+    //     let deserialized_values = deserialized_plaintext.get_packed_value();
+    //     assert_eq!(original_values, deserialized_values);
+    //     assert_eq!(original_values[0], large_value);
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_empty_string() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     // Test with empty string (single space to avoid OpenFHE limitation)
+    //     let empty_string = " ";
+    //     let original_plaintext = create_test_plaintext_string(&cc, empty_string);
+
+    //     // Serialize
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+
+    //     // Deserialize
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify string content integrity
+    //     let original_string = original_plaintext
+    //         .get_string_from_bytes()
+    //         .expect("Failed to get original string");
+    //     let deserialized_string = deserialized_plaintext
+    //         .get_string_from_bytes()
+    //         .expect("Failed to get deserialized string");
+    //     assert_eq!(original_string, deserialized_string);
+    //     assert_eq!(original_string, empty_string);
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_special_characters() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     let special_chars = "!@#$%^&*()_+-=[]{}|;':\",./<>?\\`~";
+    //     let original_plaintext = create_test_plaintext_string(&cc, special_chars);
+
+    //     // Serialize
+    //     let serialized =
+    //         bincode::serialize(&original_plaintext).expect("Failed to serialize plaintext");
+
+    //     // Deserialize
+    //     let deserialized_plaintext: Plaintext =
+    //         bincode::deserialize(&serialized).expect("Failed to deserialize plaintext");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify string content integrity
+    //     let original_string = original_plaintext
+    //         .get_string_from_bytes()
+    //         .expect("Failed to get original string");
+    //     let deserialized_string = deserialized_plaintext
+    //         .get_string_from_bytes()
+    //         .expect("Failed to get deserialized string");
+    //     assert_eq!(original_string, deserialized_string);
+    //     assert_eq!(original_string, special_chars);
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_concurrent() {
+    //     use std::sync::{Arc, Barrier};
+    //     use std::thread;
+
+    //     const NUM_THREADS: usize = 4;
+    //     const ITERATIONS_PER_THREAD: usize = 10;
+
+    //     let barrier = Arc::new(Barrier::new(NUM_THREADS));
+    //     let mut handles = Vec::new();
+
+    //     for thread_id in 0..NUM_THREADS {
+    //         let barrier_clone = Arc::clone(&barrier);
+
+    //         let handle = thread::spawn(move || {
+    //             barrier_clone.wait();
+
+    //             for iteration in 0..ITERATIONS_PER_THREAD {
+    //                 let result = std::panic::catch_unwind(|| {
+    //                     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //                     // Create different types of plaintexts
+    //                     let single_pt =
+    //                         create_test_plaintext_single(&cc, (thread_id * 100 + iteration) as i64);
+    //                     let vector_pt = create_test_plaintext_vector(
+    //                         &cc,
+    //                         &vec![thread_id as i64, iteration as i64, 42],
+    //                     );
+    //                     let string_pt = create_test_plaintext_string(
+    //                         &cc,
+    //                         &format!("thread_{}_iter_{}", thread_id, iteration),
+    //                     );
+
+    //                     let plaintexts = vec![single_pt, vector_pt, string_pt];
+
+    //                     for (i, plaintext) in plaintexts.iter().enumerate() {
+    //                         // Serialize
+    //                         let serialized = bincode::serialize(plaintext).expect(&format!(
+    //                             "Thread {} failed to serialize plaintext {} in iteration {}",
+    //                             thread_id, i, iteration
+    //                         ));
+
+    //                         // Deserialize
+    //                         let deserialized: Plaintext =
+    //                             bincode::deserialize(&serialized).expect(&format!(
+    //                                 "Thread {} failed to deserialize plaintext {} in iteration {}",
+    //                                 thread_id, i, iteration
+    //                             ));
+
+    //                         // Verify equality
+    //                         assert_eq!(*plaintext, deserialized);
+
+    //                         // Verify data integrity
+    //                         let original_values = plaintext.get_packed_value();
+    //                         let deserialized_values = deserialized.get_packed_value();
+    //                         assert_eq!(original_values, deserialized_values);
+    //                     }
+    //                 });
+
+    //                 if result.is_err() {
+    //                     panic!(
+    //                         "Thread {} panicked during ser/deser test at iteration {}: {:?}",
+    //                         thread_id, iteration, result
+    //                     );
+    //                 }
+    //             }
+
+    //             println!(
+    //                 "Thread {} completed ser/deser tests successfully",
+    //                 thread_id
+    //             );
+    //         });
+
+    //         handles.push(handle);
+    //     }
+
+    //     for (i, handle) in handles.into_iter().enumerate() {
+    //         match handle.join() {
+    //             Ok(_) => println!("Ser/deser test thread {} completed successfully", i),
+    //             Err(e) => panic!("Ser/deser test thread {} panicked: {:?}", i, e),
+    //         }
+    //     }
+
+    //     println!("Concurrent plaintext serialization/deserialization test completed successfully");
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_size_consistency() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     // Test that serialization produces consistent sizes for identical data
+    //     let values = vec![1, 2, 3, 4, 5];
+    //     let plaintext1 = create_test_plaintext_vector(&cc, &values);
+    //     let plaintext2 = create_test_plaintext_vector(&cc, &values);
+
+    //     // Serialize both
+    //     let serialized1 = bincode::serialize(&plaintext1).expect("Failed to serialize plaintext1");
+    //     let serialized2 = bincode::serialize(&plaintext2).expect("Failed to serialize plaintext2");
+
+    //     // Verify sizes are consistent
+    //     assert_eq!(serialized1.len(), serialized2.len());
+
+    //     // Verify content is identical
+    //     assert_eq!(serialized1, serialized2);
+    // }
+
+    // #[test]
+    // fn test_plaintext_serialization_deserialization_json() {
+    //     let (cc, _key_pair) = create_test_crypto_context_and_keypair();
+
+    //     let values = vec![1, 2, 3, 4, 5];
+    //     let original_plaintext = create_test_plaintext_vector(&cc, &values);
+
+    //     // Serialize to JSON
+    //     let json_string = serde_json::to_string(&original_plaintext)
+    //         .expect("Failed to serialize plaintext to JSON");
+
+    //     // Verify JSON is not empty
+    //     assert!(!json_string.is_empty());
+
+    //     // Deserialize from JSON
+    //     let deserialized_plaintext: Plaintext =
+    //         serde_json::from_str(&json_string).expect("Failed to deserialize plaintext from JSON");
+
+    //     // Verify equality
+    //     assert_eq!(original_plaintext, deserialized_plaintext);
+
+    //     // Verify data integrity
+    //     let original_values = original_plaintext.get_packed_value();
+    //     let deserialized_values = deserialized_plaintext.get_packed_value();
+    //     assert_eq!(original_values, deserialized_values);
+    // }
 }

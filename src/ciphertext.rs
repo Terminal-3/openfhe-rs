@@ -40,7 +40,11 @@ impl Serialize for Ciphertext {
         S: Serializer,
     {
         let mut out_bytes = CxxVector::<u8>::new();
-        ffi::DCRTPolySerializeCiphertextToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
+        let res =
+            ffi::DCRTPolySerializeCiphertextToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
+        if !res {
+            return Err(serde::ser::Error::custom("Failed to serialize ciphertext"));
+        }
         serializer.serialize_bytes(out_bytes.as_slice())
     }
 }
@@ -69,7 +73,10 @@ impl<'de> Deserialize<'de> for Ciphertext {
                     bytes_vec.pin_mut().push(byte);
                 }
                 let mut ct = ffi::DCRTPolyGenNullCiphertext();
-                ffi::DCRTPolyDeserializeCiphertextFromBytes(&bytes_vec, ct.pin_mut());
+                let res = ffi::DCRTPolyDeserializeCiphertextFromBytes(&bytes_vec, ct.pin_mut());
+                if !res {
+                    return Err(serde::de::Error::custom("Failed to deserialize ciphertext"));
+                }
                 Ok(Ciphertext(ct))
             }
         }

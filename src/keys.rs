@@ -82,7 +82,11 @@ impl Serialize for PublicKey {
         S: Serializer,
     {
         let mut out_bytes = CxxVector::<u8>::new();
-        ffi::DCRTPolySerializePublicKeyToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
+        let res =
+            ffi::DCRTPolySerializePublicKeyToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
+        if !res {
+            return Err(serde::ser::Error::custom("Failed to serialize public key"));
+        }
         serializer.serialize_bytes(out_bytes.as_slice())
     }
 }
@@ -110,7 +114,10 @@ impl<'de> Deserialize<'de> for PublicKey {
                     bytes_vec.pin_mut().push(byte);
                 }
                 let mut pk = ffi::DCRTPolyGenNullPublicKey();
-                ffi::DCRTPolyDeserializePublicKeyFromBytes(&bytes_vec, pk.pin_mut());
+                let res = ffi::DCRTPolyDeserializePublicKeyFromBytes(&bytes_vec, pk.pin_mut());
+                if !res {
+                    return Err(serde::de::Error::custom("Failed to deserialize public key"));
+                }
                 Ok(PublicKey(pk))
             }
         }
@@ -146,7 +153,11 @@ impl Serialize for SecretKey {
         S: Serializer,
     {
         let mut out_bytes = CxxVector::<u8>::new();
-        ffi::DCRTPolySerializePrivateKeyToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
+        let res =
+            ffi::DCRTPolySerializePrivateKeyToBytes(self.0.as_ref().unwrap(), out_bytes.pin_mut());
+        if !res {
+            return Err(serde::ser::Error::custom("Failed to serialize secret key"));
+        }
         serializer.serialize_bytes(out_bytes.as_slice())
     }
 }
@@ -174,7 +185,10 @@ impl<'de> Deserialize<'de> for SecretKey {
                     bytes_vec.pin_mut().push(byte);
                 }
                 let mut sk = ffi::DCRTPolyGenNullPrivateKey();
-                ffi::DCRTPolyDeserializePrivateKeyFromBytes(&bytes_vec, sk.pin_mut());
+                let res = ffi::DCRTPolyDeserializePrivateKeyFromBytes(&bytes_vec, sk.pin_mut());
+                if !res {
+                    return Err(serde::de::Error::custom("Failed to deserialize secret key"));
+                }
                 Ok(SecretKey(sk))
             }
         }

@@ -147,6 +147,7 @@ std::unique_ptr<Plaintext> GenNullPlainText()
     return std::make_unique<Plaintext>();
 }
 
+
 // Equality function
 bool ArePlaintextsEqual(const Plaintext& a, const Plaintext& b)
 {
